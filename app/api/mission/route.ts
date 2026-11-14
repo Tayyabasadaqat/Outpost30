@@ -1,44 +1,92 @@
 
 /* ==========================================
-   OUTPOST 30 — MISSION CONTROLLER API
-   NASA INTEGRATION ENABLED
+   OUTPOST 30 — MISSION API
+   NASA + DYNAMIC EMERGENCY INTEGRATION
    ========================================== */
 
 import { NextRequest, NextResponse } from "next/server";
 
 import {
   startMission,
+  getChallenge,
   makeDecision,
   getMissionSummary,
   type MissionState,
+  type MissionChallenge,
+  type ResourceName,
 } from "@/lib/mission";
 
+import { getSpaceWeather } from "@/lib/nasa";
+
 import {
-  getNASAMissionChallenge,
-  isNASAMissionDay,
-} from "@/lib/nasa-missions";
+  generateNASATimeline,
+  generateNASAScenario,
+  type NASATimelineEntry,
+} from "@/lib/nasa-event-engine";
+
+import {
+  detectGameEmergencies,
+  type GameEmergency,
+} from "@/lib/emergency-engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ==========================================
-// VALIDATE MISSION STATE
+// EXTENDED MISSION STATE
 // ==========================================
 
-function isMissionState(
-  value: unknown
-): value is MissionState {
-  if (!value || typeof value !== "object") {
+type EmergencyRecord = {
+  day: number;
+  emergencyId: string;
+  choiceId: string;
+  feedback: string;
+};
+
+type GameState = MissionState & {
+  nasaTimeline: NASATimelineEntry[];
+  nasaDataMode: "live" | "historical";
+
+  // Prevent repeated emergency rewards.
+  resolvedEmergencies: string[];
+
+  // Keep an audit of emergency decisions.
+  emergencyHistory: EmergencyRecord[];
+};
+
+// ==========================================
+// HELPERS
+// ==========================================
+
+function clamp(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function errorResponse(
+  message: string,
+  status = 400
+) {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status }
+  );
+}
+
+function isGameState(value: unknown): value is GameState {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
     return false;
   }
 
-  const state = value as Partial<MissionState>;
+  const state = value as Partial<GameState>;
 
   if (
-    typeof state.day !== "number" ||
     !Number.isInteger(state.day) ||
-    state.day < 1 ||
-    state.day > 30
+    (state.day ?? 0) < 1 ||
+    (state.day ?? 0) > 30
   ) {
     return false;
   }
@@ -60,50 +108,176 @@ function isMissionState(
     return false;
   }
 
-  if (
-    !state.resources ||
-    typeof state.resources !== "object"
-  ) {
-    return false;
-  }
+  const resources = state.resources;
 
-  const resourceNames = [
+  if (!resources) return false;
+
+  const keys: ResourceName[] = [
     "oxygen",
     "water",
     "food",
     "power",
     "health",
-  ] as const;
+  ];
 
-  return resourceNames.every((name) => {
-    const amount = state.resources?.[name];
+  if (
+    !keys.every(
+      (key) =>
+        typeof resources[key] === "number" &&
+        Number.isFinite(resources[key]) &&
+        resources[key] >= 0 &&
+        resources[key] <= 100
+    )
+  ) {
+    return false;
+  }
 
-    return (
-      typeof amount === "number" &&
-      Number.isFinite(amount) &&
-      amount >= 0 &&
-      amount <= 100
-    );
-  });
+  const crew = state.crew;
+  const equipment = state.equipment;
+
+  if (!crew || !equipment) return false;
+
+  const conditions = [
+    crew.fatigue,
+    crew.morale,
+    equipment.lifeSupport,
+    equipment.solarPanels,
+    equipment.waterRecycler,
+  ];
+
+  if (
+    !conditions.every(
+      (value) =>
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        value >= 0 &&
+        value <= 100
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    !Array.isArray(state.nasaTimeline) ||
+    !state.nasaTimeline.every(
+      (entry) =>
+        entry &&
+        Number.isInteger(entry.day) &&
+        entry.day >= 1 &&
+        entry.day <= 30 &&
+        typeof entry.event?.id === "string" &&
+        typeof entry.event?.observedAt === "string" &&
+        typeof entry.event?.title === "string" &&
+        typeof entry.event?.source === "string" &&
+        entry.event.source.startsWith("NASA DONKI")
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    state.nasaDataMode !== "live" &&
+    state.nasaDataMode !== "historical"
+  ) {
+    return false;
+  }
+
+  if (
+    !Array.isArray(state.resolvedEmergencies) ||
+    !state.resolvedEmergencies.every(
+      (item) => typeof item === "string"
+    ) ||
+    !Array.isArray(state.emergencyHistory)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 // ==========================================
-// GET — API STATUS
+// DAILY CHALLENGE
+// ==========================================
+
+function getGameChallenge(
+  state: GameState
+): MissionChallenge | null {
+  const base = getChallenge(state.day);
+
+  if (!base) return null;
+
+  const nasaEntry = state.nasaTimeline.find(
+    (entry) => entry.day === state.day
+  );
+
+  if (!nasaEntry) return base;
+
+  const scenario = generateNASAScenario(
+    state.day,
+    nasaEntry.event,
+    state.resources
+  );
+
+  return {
+    day: state.day,
+    title: scenario.title,
+    description: scenario.description,
+    category: "NASA Space Weather",
+    nasaEventId: scenario.eventId,
+    nasaSource: scenario.source,
+
+    choices: scenario.choices.map((choice) => ({
+      ...choice,
+      description:
+        `Operational priority: ${scenario.priority}. ` +
+        "Simulated training consequences.",
+    })),
+  };
+}
+
+// ==========================================
+// UNRESOLVED EMERGENCIES
+// ==========================================
+
+function getPendingEmergencies(
+  state: GameState
+): GameEmergency[] {
+  if (state.status !== "active") return [];
+
+  return detectGameEmergencies(state).filter(
+    (emergency) => {
+      const key = `${state.day}:${emergency.id}`;
+
+      return !state.resolvedEmergencies.includes(key);
+    }
+  );
+}
+
+function getCurrentEmergency(
+  state: GameState
+): GameEmergency | null {
+  return getPendingEmergencies(state)[0] ?? null;
+}
+
+// ==========================================
+// GET — HEALTH CHECK
 // ==========================================
 
 export async function GET() {
   return NextResponse.json({
     success: true,
     game: "OUTPOST 30",
-    engine: "Lunar Mission Simulator",
+    engine: "Dynamic Lunar Mission Simulator",
     status: "online",
     totalDays: 30,
     nasaIntegration: true,
-    nasaMissionDays: [8, 16, 26],
+    scheduling: "data-driven",
+    emergencySystem: true,
     actions: [
       "start",
       "challenge",
       "decide",
+      "resolve-emergency",
       "summary",
     ],
   });
@@ -122,205 +296,355 @@ export async function POST(request: NextRequest) {
       typeof body !== "object" ||
       Array.isArray(body)
     ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid request body.",
-        },
-        { status: 400 }
-      );
+      return errorResponse("Invalid request body.");
     }
 
-    const { action, state, choiceId } = body;
+    const { action, state, choiceId, emergencyId } = body;
 
-    // --------------------------------------
-    // ACTION 1: START MISSION
-    // --------------------------------------
+    // ======================================
+    // START MISSION
+    // ======================================
 
     if (action === "start") {
-      const newMission = startMission();
+      const nasaData = await getSpaceWeather();
 
-      const challenge = await getNASAMissionChallenge(
-        newMission.day
+      if (
+        !nasaData.success ||
+        nasaData.events.length === 0
+      ) {
+        return errorResponse(
+          "Authentic NASA observations are unavailable.",
+          503
+        );
+      }
+
+      const timeline = generateNASATimeline(
+        nasaData.events,
+        30
       );
+
+      if (timeline.length === 0) {
+        return errorResponse(
+          "No valid NASA DONKI events found.",
+          503
+        );
+      }
+
+      const newState: GameState = {
+        ...startMission(),
+
+        nasaTimeline: timeline,
+
+        nasaDataMode:
+          nasaData.mode === "live"
+            ? "live"
+            : "historical",
+
+        resolvedEmergencies: [],
+        emergencyHistory: [],
+      };
 
       return NextResponse.json({
         success: true,
         message: "Welcome to OUTPOST 30, Commander!",
-        state: newMission,
-        challenge,
+        state: newState,
+        challenge: getGameChallenge(newState),
+        emergency: getCurrentEmergency(newState),
+        nasaEventCount: timeline.length,
+        nasaDataMode: newState.nasaDataMode,
+
+        nasaTimeline: timeline.map((entry) => ({
+          day: entry.day,
+          eventId: entry.event.id,
+          title: entry.event.title,
+          observedAt: entry.event.observedAt,
+        })),
       });
     }
 
-    // All other actions need a valid state.
-    if (!isMissionState(state)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "A valid mission state is required.",
-        },
-        { status: 400 }
+    if (!isGameState(state)) {
+      return errorResponse(
+        "Invalid game state. Start a new mission."
       );
     }
 
-    // --------------------------------------
-    // ACTION 2: GET CURRENT CHALLENGE
-    // --------------------------------------
+    // ======================================
+    // GET CURRENT CHALLENGE
+    // ======================================
 
     if (action === "challenge") {
       if (state.status !== "active") {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Mission is no longer active.",
-          },
-          { status: 400 }
-        );
+        return errorResponse("Mission is not active.");
       }
 
-      const challenge = await getNASAMissionChallenge(
-        state.day
-      );
+      const emergency = getCurrentEmergency(state);
+      const challenge = getGameChallenge(state);
 
       return NextResponse.json({
         success: true,
         day: state.day,
-        challenge,
+
+        // Emergency must be handled first.
+        requiresEmergencyResponse: Boolean(emergency),
+        emergency,
+        pendingEmergencies: getPendingEmergencies(state),
+
+        challenge: emergency ? null : challenge,
+
         resources: state.resources,
+        crew: state.crew,
+        equipment: state.equipment,
+
         score: state.score,
-        isNASAMission: isNASAMissionDay(state.day),
+        isNASAMission: Boolean(challenge?.nasaEventId),
         nasaEventId: challenge?.nasaEventId ?? null,
         nasaSource: challenge?.nasaSource ?? null,
+        nasaDataMode: state.nasaDataMode,
       });
     }
 
-    // --------------------------------------
-    // ACTION 3: MAKE PLAYER DECISION
-    // --------------------------------------
+    // ======================================
+    // RESOLVE EMERGENCY
+    // ======================================
+
+    if (action === "resolve-emergency") {
+      if (state.status !== "active") {
+        return errorResponse("Mission is not active.");
+      }
+
+      const emergency = getCurrentEmergency(state);
+
+      if (!emergency) {
+        return errorResponse(
+          "No unresolved emergency exists."
+        );
+      }
+
+      // Only resolve the highest-priority emergency.
+      if (emergency.id !== emergencyId) {
+        return errorResponse(
+          "Resolve the current priority emergency first."
+        );
+      }
+
+      const choice = emergency.choices.find(
+        (item) => item.id === choiceId
+      );
+
+      if (!choice) {
+        return errorResponse(
+          "Invalid emergency response choice."
+        );
+      }
+
+      // Apply immediate resource consequences.
+      const resources = { ...state.resources };
+
+      for (const key of Object.keys(
+        choice.effects
+      ) as ResourceName[]) {
+        resources[key] = clamp(
+          resources[key] + (choice.effects[key] ?? 0)
+        );
+      }
+
+      // Apply crew consequences.
+      const crew = { ...state.crew };
+
+      if (choice.crewEffects) {
+        for (const key of [
+          "fatigue",
+          "morale",
+        ] as const) {
+          crew[key] = clamp(
+            crew[key] +
+            (choice.crewEffects[key] ?? 0)
+          );
+        }
+      }
+
+      // Apply equipment consequences.
+      const equipment = { ...state.equipment };
+
+      if (choice.equipmentEffects) {
+        for (const key of [
+          "lifeSupport",
+          "solarPanels",
+          "waterRecycler",
+        ] as const) {
+          equipment[key] = clamp(
+            equipment[key] +
+            (choice.equipmentEffects[key] ?? 0)
+          );
+        }
+      }
+
+      const resolutionKey =
+        `${state.day}:${emergency.id}`;
+
+      const failed = (
+        Object.values(resources).some(
+          (value) => value <= 0
+        )
+      );
+
+      const updatedState: GameState = {
+        ...state,
+
+        resources,
+        crew,
+        equipment,
+
+        status: failed ? "failed" : "active",
+
+        resolvedEmergencies: [
+          ...state.resolvedEmergencies,
+          resolutionKey,
+        ],
+
+        emergencyHistory: [
+          ...state.emergencyHistory,
+          {
+            day: state.day,
+            emergencyId: emergency.id,
+            choiceId: choice.id,
+            feedback: choice.feedback,
+          },
+        ],
+      };
+
+      const nextEmergency =
+        getCurrentEmergency(updatedState);
+
+      return NextResponse.json({
+        success: true,
+        message: choice.feedback,
+        resolvedEmergency: emergency.id,
+        state: updatedState,
+
+        nextEmergency,
+
+        challenge:
+          updatedState.status === "active" &&
+          !nextEmergency
+            ? getGameChallenge(updatedState)
+            : null,
+
+        summary: getMissionSummary(updatedState),
+      });
+    }
+
+    // ======================================
+    // NORMAL / NASA MISSION DECISION
+    // ======================================
 
     if (action === "decide") {
-      if (typeof choiceId !== "string") {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "A choice ID is required.",
-          },
-          { status: 400 }
-        );
-      }
-
       if (state.status !== "active") {
+        return errorResponse("Mission is not active.");
+      }
+
+      // Block progression if an emergency is pending.
+      const emergency = getCurrentEmergency(state);
+
+      if (emergency) {
         return NextResponse.json(
           {
             success: false,
-            error: "Mission is no longer active.",
+            error:
+              "Resolve the current emergency before advancing.",
+            emergency,
           },
-          { status: 400 }
+          { status: 409 }
         );
       }
 
-      // Retrieve the appropriate mission challenge.
-      const challenge = await getNASAMissionChallenge(
-        state.day
-      );
+      const challenge = getGameChallenge(state);
 
       if (!challenge) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Mission challenge not found.",
-          },
-          { status: 404 }
+        return errorResponse(
+          "Mission challenge not found.",
+          404
         );
       }
 
-      const selectedChoice = challenge.choices.find(
-        (choice) => choice.id === choiceId
-      );
-
-      if (!selectedChoice) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Invalid mission decision.",
-          },
-          { status: 400 }
+      if (
+        !challenge.choices.some(
+          (choice) => choice.id === choiceId
+        )
+      ) {
+        return errorResponse(
+          "Invalid mission decision."
         );
       }
 
-      // Apply NASA-specific or standard consequences.
-      const updatedState = makeDecision(
+      const updatedMission = makeDecision(
         state,
         choiceId,
         challenge
       );
+
+      const updatedState: GameState = {
+        ...state,
+        ...updatedMission,
+      };
 
       const lastDecision =
         updatedState.history[
           updatedState.history.length - 1
         ];
 
-      // Retrieve the next day's challenge.
+      const nextEmergency =
+        getCurrentEmergency(updatedState);
+
       const nextChallenge =
-        updatedState.status === "active"
-          ? await getNASAMissionChallenge(
-              updatedState.day
-            )
+        updatedState.status === "active" &&
+        !nextEmergency
+          ? getGameChallenge(updatedState)
           : null;
 
       return NextResponse.json({
         success: true,
         message: lastDecision.feedback,
         decision: lastDecision,
+
+        wasNASAMission: Boolean(challenge.nasaEventId),
         nasaEventId: challenge.nasaEventId ?? null,
         nasaSource: challenge.nasaSource ?? null,
-        wasNASAMission: Boolean(challenge.nasaEventId),
+
         state: updatedState,
+        nextEmergency,
         nextChallenge,
+
         summary: getMissionSummary(updatedState),
       });
     }
 
-    // --------------------------------------
-    // ACTION 4: MISSION SUMMARY
-    // --------------------------------------
+    // ======================================
+    // MISSION SUMMARY
+    // ======================================
 
     if (action === "summary") {
       return NextResponse.json({
         success: true,
         summary: getMissionSummary(state),
+        nasaEventsScheduled: state.nasaTimeline.length,
+        nasaDataMode: state.nasaDataMode,
+        emergenciesResolved:
+          state.emergencyHistory.length,
+        emergencyHistory: state.emergencyHistory,
       });
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unknown mission action.",
-      },
-      { status: 400 }
-    );
+    return errorResponse("Unknown mission action.");
+
   } catch (error) {
     console.error("Mission API Error:", error);
 
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid JSON request.",
-        },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Internal mission error.",
-      },
-      { status: 500 }
+    return errorResponse(
+      error instanceof Error
+        ? error.message
+        : "Internal mission error.",
+      error instanceof SyntaxError ? 400 : 500
     );
   }
 }
