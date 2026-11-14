@@ -1,69 +1,188 @@
-import Image from "next/image";
+
+"use client";
+
+import { useState } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Compass,
+  Gamepad2,
+  Rocket,
+  X,
+} from "lucide-react";
+
+import "./landing.css";
+
+const LunarScene = dynamic(
+  () => import("@/components/LunarScene"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="moon-loading">
+        Preparing your Moon base... 🌙
+      </div>
+    ),
+  }
+);
+
+type Place = "Habitat" | "Greenhouse" | "Solar Panels";
+
+const descriptions: Record<Place, string> = {
+  Habitat: "A cozy home that keeps your astronaut crew safe!",
+  Greenhouse: "Our little plants help grow food on the Moon.",
+  "Solar Panels": "These collect sunlight to power the base.",
+};
 
 export default function Home() {
+  const [explore, setExplore] = useState(false);
+  const [selected, setSelected] = useState<Place | null>(null);
+  const [showHow, setShowHow] = useState(false);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="landing">
+
+      {/* INTERACTIVE 3D MOON BASE */}
+      <div className="landing-world">
+        <LunarScene
+          explore={explore}
+          onSelect={setSelected}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+      </div>
+
+      <div className="landing-shade" />
+
+      {/* HEADER */}
+      <header className="landing-header">
+        <Link href="/" className="landing-logo">
+          <span className="logo-star">✦</span>
+          OUTPOST <span>30</span>
+        </Link>
+
+        <button
+          className="landing-help"
+          onClick={() => setShowHow(true)}
+        >
+          <Gamepad2 size={19} />
+          How to Play
+        </button>
+      </header>
+
+      {/* HERO SECTION */}
+      <section className="landing-hero">
+        <div className="landing-content">
+
+          <div className="landing-eyebrow">
+            <span className="status-dot" />
+            CALLING ALL JUNIOR ASTRONAUTS
+          </div>
+
+          <h1>
+            Your Moon base
+            <br />
+            <span>needs you!</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="landing-description">
+            A little crew. A big adventure.
+            <br />
+            Can you save the base in 30 days?
           </p>
+
+          <div className="landing-buttons">
+
+            <Link href="/game" className="landing-start">
+              <Rocket size={21} />
+              START MISSION
+              <ArrowRight size={19} />
+            </Link>
+
+            <button
+              className="landing-explore"
+              onClick={() => setExplore(!explore)}
+            >
+              <Compass size={20} />
+              {explore ? "Stop Exploring" : "Explore the Base"}
+            </button>
+
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </section>
+
+      {/* BOTTOM INFORMATION */}
+      <div className="landing-bottom">
+        <span>
+          ✦ Drag to look around · Click a building
+        </span>
+
+        <span className="landing-bottom-right">
+          30 DAYS. ONE MOON BASE.
+        </span>
+      </div>
+
+      {/* BUILDING INFORMATION */}
+      {selected && (
+        <div className="landing-info">
+          <button
+            aria-label="Close information"
+            onClick={() => setSelected(null)}
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <X size={18} />
+          </button>
+
+          <span>YOU DISCOVERED</span>
+
+          <h2>{selected}</h2>
+
+          <p>{descriptions[selected]}</p>
         </div>
-      </main>
-    </div>
+      )}
+
+      {/* HOW TO PLAY POPUP */}
+      {showHow && (
+        <div className="landing-modal-backdrop">
+          <div
+            className="landing-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="how-heading"
+          >
+            <button
+              className="landing-modal-close"
+              onClick={() => setShowHow(false)}
+              aria-label="Close instructions"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="landing-modal-emoji">
+              🚀
+            </div>
+
+            <h2 id="how-heading">
+              Hey, Commander!
+            </h2>
+
+            <p>
+              Explore your Moon base, make important
+              decisions, and protect your crew for
+              30 mission days.
+            </p>
+
+            <div className="landing-steps">
+              <span>🌙 Explore</span>
+              <span>⚡ Make Choices</span>
+              <span>⭐ Save the Base</span>
+            </div>
+
+            <Link href="/game" className="landing-start">
+              LET&apos;S GO!
+              <ArrowRight size={19} />
+            </Link>
+
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
