@@ -41,3 +41,88 @@ body {
     animation: none;
   }
 }
+/* OUTPOST 30 - Cinematic Mission Intro */
+
+.mission-intro {
+  animation: introFade 0.35s ease-out both;
+}
+
+.mission-intro-bar {
+  animation: cinematicBars 0.7s ease-out both;
+}
+
+.mission-intro-content {
+  animation: cinematicTitle 1s ease-out both;
+}
+
+.mission-intro-label {
+  animation: introFade 0.8s 0.3s both;
+}
+
+.mission-intro-bottom {
+  animation: introFade 0.8s 0.5s both;
+}
+
+.mission-intro-progress {
+  width: 0%;
+  animation: cinematicProgress 2.6s linear forwards;
+}
+
+@keyframes introFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cinematicBars {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes cinematicTitle {
+  from {
+    opacity: 0;
+    transform: translateY(25px) scale(0.94);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes cinematicProgress {
+  from {
+    width: 0%;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mission-intro,
+  .mission-intro-bar,
+  .mission-intro-content,
+  .mission-intro-label,
+  .mission-intro-bottom,
+  .mission-intro-progress {
+    animation: none;
+  }
+
+  .mission-intro-progress {
+    width: 100%;
+  }
+}

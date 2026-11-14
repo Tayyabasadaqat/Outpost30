@@ -1,8 +1,9 @@
 
 "use client";
 
+import MissionIntro from "@/components/MissionIntro";
 import type { FocusTarget } from "@/components/LunarScene";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -55,8 +56,12 @@ const missionFocus: Record<number, FocusTarget> = {
   3: "Rover",
 };
 
-type GameScreen = "base" | "mission" | "result" | "finished";
-
+type GameScreen =
+  | "base"
+  | "intro"
+  | "mission"
+  | "result"
+  | "finished";
 function clamp(value: number) {
   return Math.max(0, Math.min(100, value));
 }
@@ -80,6 +85,16 @@ export default function GamePage() {
     useState<string | null>(null);
 
   const mission = frontendMissions[missionIndex];
+  
+  useEffect(() => {
+  if (screen !== "intro") return;
+
+  const timer = window.setTimeout(() => {
+    setScreen("mission");
+  }, 2600);
+
+  return () => window.clearTimeout(timer);
+}, [screen, missionIndex]);
 
   // Called once when the player confirms a decision.
   function handleDecision(option: MissionOption) {
@@ -203,7 +218,7 @@ export default function GamePage() {
                 onClick={() => {
   setFocusedArea(missionFocus[mission.day] ?? null);
   setSelectedBuilding(null);
-  setScreen("mission");
+  setScreen("intro");
 }}
                 className="mx-auto flex items-center gap-3 rounded-2xl bg-[#ffd080] px-8 py-4 font-black text-[#17213a] shadow-lg shadow-amber-500/20 transition hover:scale-105 hover:bg-[#ffe0a6]"
               >
@@ -225,6 +240,24 @@ export default function GamePage() {
           </div>
         </div>
       )}
+ 
+{/* CINEMATIC MISSION INTRODUCTION */}
+{screen === "intro" && (
+  <MissionIntro
+    day={mission.day}
+    title={mission.title}
+    location={
+      mission.day === 1
+        ? "Solar Power Station"
+        : mission.day   === 2
+          ? "Moon Greenhouse"
+          : mission.day === 3
+            ? "Lunar Rover"
+            : "Moon Base"
+    }
+    onSkip={() => setScreen("mission")}
+  />
+)}
 
       {/* MISSION POPUP */}
       {screen === "mission" && (
