@@ -2,9 +2,11 @@
 import { NextResponse } from "next/server";
 import { getSpaceWeather } from "@/lib/nasa";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
-    // Fetch observations from NASA DONKI
     const nasaData = await getSpaceWeather();
 
     if (!nasaData.success) {
@@ -12,20 +14,21 @@ export async function GET() {
         {
           success: false,
           message: "NASA data is currently unavailable.",
+          source: nasaData.source,
+          mode: nasaData.mode,
           error: nasaData.error,
+          totalEvents: 0,
           events: [],
         },
         { status: 503 }
       );
     }
 
-    // Send NASA observations to the frontend
     return NextResponse.json({
       success: true,
       message: "NASA DONKI data retrieved successfully",
       source: nasaData.source,
-      from: nasaData.from,
-      to: nasaData.to,
+      mode: nasaData.mode,
       totalEvents: nasaData.events.length,
       events: nasaData.events,
     });
@@ -36,6 +39,7 @@ export async function GET() {
       {
         success: false,
         message: "Unable to retrieve space weather data",
+        totalEvents: 0,
         events: [],
       },
       { status: 500 }
