@@ -4,13 +4,18 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+
 import {
   ArrowRight,
   Compass,
   Gamepad2,
   Rocket,
   X,
+  RotateCcw,
+  MousePointer2,
 } from "lucide-react";
+
+import type { FocusTarget } from "@/components/LunarScene";
 
 import "./landing.css";
 
@@ -19,8 +24,9 @@ const LunarScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="moon-loading">
-        Preparing your Moon base... 🌙
+      <div className="real3d-loading">
+        <span className="real3d-loading-orbit">✦</span>
+        Preparing Moon Base...
       </div>
     ),
   }
@@ -28,161 +34,252 @@ const LunarScene = dynamic(
 
 type Place = "Habitat" | "Greenhouse" | "Solar Panels";
 
-const descriptions: Record<Place, string> = {
-  Habitat: "A cozy home that keeps your astronaut crew safe!",
-  Greenhouse: "Our little plants help grow food on the Moon.",
-  "Solar Panels": "These collect sunlight to power the base.",
+const placeDetails: Record<
+  Place,
+  { title: string; description: string; icon: string }
+> = {
+  Habitat: {
+    title: "Lunar Habitat",
+    description:
+      "Your astronauts live and work here. Keep their home safe!",
+    icon: "🏠",
+  },
+
+  Greenhouse: {
+    title: "Moon Greenhouse",
+    description:
+      "Grow plants and help provide food for your crew.",
+    icon: "🌱",
+  },
+
+  "Solar Panels": {
+    title: "Power Station",
+    description:
+      "Collect sunlight to keep the Moon base running.",
+    icon: "⚡",
+  },
 };
 
 export default function Home() {
-  const [explore, setExplore] = useState(false);
-  const [selected, setSelected] = useState<Place | null>(null);
-  const [showHow, setShowHow] = useState(false);
+  const [focus, setFocus] =
+    useState<FocusTarget>(null);
+
+  const [selectedPlace, setSelectedPlace] =
+    useState<Place | null>(null);
+
+  const [autoExplore, setAutoExplore] = useState(false);
+
+  const [showInstructions, setShowInstructions] =
+    useState(false);
+
+  function selectBuilding(place: Place) {
+    setAutoExplore(false);
+    setSelectedPlace(place);
+    setFocus(place);
+  }
+
+  function resetCamera() {
+    setFocus(null);
+    setSelectedPlace(null);
+    setAutoExplore(false);
+  }
+
+  function exploreBase() {
+    setSelectedPlace(null);
+    setFocus(null);
+    setAutoExplore((current) => !current);
+  }
 
   return (
-    <main className="landing">
+    <main className="real3d-landing">
 
-      {/* INTERACTIVE 3D MOON BASE */}
-      <div className="landing-world">
+      {/* ACTUAL INTERACTIVE 3D SCENE */}
+      <div className="real3d-world">
         <LunarScene
-          explore={explore}
-          onSelect={setSelected}
+          explore={autoExplore}
+          focus={focus}
+          onSelect={selectBuilding}
         />
       </div>
 
-      <div className="landing-shade" />
+      {/* Light gradient — doesn't block 3D clicks */}
+      <div className="real3d-atmosphere" />
 
       {/* HEADER */}
-      <header className="landing-header">
-        <Link href="/" className="landing-logo">
-          <span className="logo-star">✦</span>
-          OUTPOST <span>30</span>
+      <header className="real3d-header">
+        <Link href="/" className="real3d-brand">
+          <span className="real3d-brand-symbol">
+            <Rocket size={19} />
+          </span>
+
+          OUTPOST <strong>30</strong>
         </Link>
 
-        <button
-          className="landing-help"
-          onClick={() => setShowHow(true)}
-        >
-          <Gamepad2 size={19} />
-          How to Play
-        </button>
+        <div className="real3d-header-actions">
+          <button
+            type="button"
+            onClick={() => setShowInstructions(true)}
+            className="real3d-icon-button"
+            aria-label="How to play"
+          >
+            <Gamepad2 size={20} />
+          </button>
+
+          <Link href="/game" className="real3d-header-play">
+            PLAY
+            <ArrowRight size={17} />
+          </Link>
+        </div>
       </header>
 
-      {/* HERO SECTION */}
-      <section className="landing-hero">
-        <div className="landing-content">
-
-          <div className="landing-eyebrow">
-            <span className="status-dot" />
-            CALLING ALL JUNIOR ASTRONAUTS
+      {/* MINIMAL HERO */}
+      {!selectedPlace && (
+        <section className="real3d-hero">
+          <div className="real3d-kicker">
+            <span className="real3d-status-light" />
+            JUNIOR ASTRONAUT MISSION
           </div>
 
           <h1>
-            Your Moon base
-            <br />
-            <span>needs you!</span>
+            Welcome to
+            <span> OUTPOST 30.</span>
           </h1>
 
-          <p className="landing-description">
-            A little crew. A big adventure.
-            <br />
-            Can you save the base in 30 days?
+          <p>
+            Your Moon adventure begins here.
           </p>
 
-          <div className="landing-buttons">
-
-            <Link href="/game" className="landing-start">
-              <Rocket size={21} />
+          <div className="real3d-hero-actions">
+            <Link href="/game" className="real3d-start">
+              <Rocket size={20} />
               START MISSION
-              <ArrowRight size={19} />
+              <ArrowRight size={18} />
             </Link>
 
             <button
-              className="landing-explore"
-              onClick={() => setExplore(!explore)}
+              type="button"
+              onClick={exploreBase}
+              className="real3d-explore"
             >
-              <Compass size={20} />
-              {explore ? "Stop Exploring" : "Explore the Base"}
+              <Compass size={19} />
+              {autoExplore
+                ? "STOP TOUR"
+                : "EXPLORE BASE"}
             </button>
-
           </div>
-        </div>
-      </section>
-
-      {/* BOTTOM INFORMATION */}
-      <div className="landing-bottom">
-        <span>
-          ✦ Drag to look around · Click a building
-        </span>
-
-        <span className="landing-bottom-right">
-          30 DAYS. ONE MOON BASE.
-        </span>
-      </div>
-
-      {/* BUILDING INFORMATION */}
-      {selected && (
-        <div className="landing-info">
-          <button
-            aria-label="Close information"
-            onClick={() => setSelected(null)}
-          >
-            <X size={18} />
-          </button>
-
-          <span>YOU DISCOVERED</span>
-
-          <h2>{selected}</h2>
-
-          <p>{descriptions[selected]}</p>
-        </div>
+        </section>
       )}
 
-      {/* HOW TO PLAY POPUP */}
-      {showHow && (
-        <div className="landing-modal-backdrop">
-          <div
-            className="landing-modal"
+      {/* SELECTED BUILDING */}
+      {selectedPlace && (
+        <aside className="real3d-location">
+          <button
+            type="button"
+            className="real3d-location-close"
+            aria-label="Close location"
+            onClick={resetCamera}
+          >
+            <X size={20} />
+          </button>
+
+          <span className="real3d-location-tag">
+            LOCATION DISCOVERED
+          </span>
+
+          <div className="real3d-location-icon">
+            {placeDetails[selectedPlace].icon}
+          </div>
+
+          <h2>
+            {placeDetails[selectedPlace].title}
+          </h2>
+
+          <p>
+            {placeDetails[selectedPlace].description}
+          </p>
+
+          <Link
+            href="/game"
+            className="real3d-location-play"
+          >
+            ENTER MISSION
+            <ArrowRight size={18} />
+          </Link>
+
+          <button
+            type="button"
+            onClick={resetCamera}
+            className="real3d-location-reset"
+          >
+            <RotateCcw size={16} />
+            Back to overview
+          </button>
+        </aside>
+      )}
+
+      {/* BOTTOM CONTROLS */}
+      <div className="real3d-bottom">
+        <div className="real3d-control-tip">
+          <MousePointer2 size={16} />
+          DRAG TO LOOK AROUND
+        </div>
+
+        <button
+          type="button"
+          className="real3d-reset"
+          onClick={resetCamera}
+        >
+          <RotateCcw size={15} />
+          RESET VIEW
+        </button>
+      </div>
+
+      {/* HOW TO PLAY */}
+      {showInstructions && (
+        <div className="real3d-modal-backdrop">
+          <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="how-heading"
+            aria-labelledby="real3d-help-title"
+            className="real3d-modal"
           >
             <button
-              className="landing-modal-close"
-              onClick={() => setShowHow(false)}
-              aria-label="Close instructions"
+              type="button"
+              aria-label="Close"
+              onClick={() => setShowInstructions(false)}
+              className="real3d-modal-close"
             >
-              <X size={22} />
+              <X size={20} />
             </button>
 
-            <div className="landing-modal-emoji">
-              🚀
-            </div>
+            <span className="real3d-location-tag">
+              MISSION BRIEFING
+            </span>
 
-            <h2 id="how-heading">
-              Hey, Commander!
+            <h2 id="real3d-help-title">
+              Ready, Commander?
             </h2>
 
             <p>
-              Explore your Moon base, make important
-              decisions, and protect your crew for
-              30 mission days.
+              Explore the base, look after your
+              crew, and complete 30 days of
+              Moon missions.
             </p>
 
-            <div className="landing-steps">
+            <div className="real3d-help-steps">
               <span>🌙 Explore</span>
-              <span>⚡ Make Choices</span>
-              <span>⭐ Save the Base</span>
+              <span>⚡ Decide</span>
+              <span>🚀 Survive</span>
             </div>
 
-            <Link href="/game" className="landing-start">
-              LET&apos;S GO!
-              <ArrowRight size={19} />
+            <Link href="/game" className="real3d-start">
+              START MISSION
+              <ArrowRight size={18} />
             </Link>
-
-          </div>
+          </section>
         </div>
       )}
+
     </main>
   );
 }

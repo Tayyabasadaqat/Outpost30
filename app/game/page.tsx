@@ -1,6 +1,7 @@
-
 "use client";
-
+import RoverExploration from "@/components/RoverExploration";
+import SolarRepair from "@/components/SolarRepair";
+import WaterRecycling from "@/components/WaterRecycling";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -77,6 +78,9 @@ type Screen =
   | "base"
   | "intro"
   | "mission"
+  | "rover"
+  | "repair"
+  | "water"
   | "emergency"
   | "result"
   | "finished";
@@ -281,11 +285,19 @@ export default function GamePage() {
     if (screen !== "intro") return;
 
     const timer = window.setTimeout(() => {
-      setScreen("mission");
+     setScreen(
+  challenge?.day === 3
+    ? "repair"
+    : challenge?.day === 4
+      ? "water"
+      : challenge?.day === 5
+        ? "rover"
+        : "mission"
+);
     }, 2600);
 
     return () => window.clearTimeout(timer);
-  }, [screen]);
+  }, [screen, challenge?.day]);
 
   function beginDay() {
     setError("");
@@ -460,15 +472,17 @@ export default function GamePage() {
       {/* 3D lunar environment */}
       <div className="absolute inset-0">
         <LunarScene
-          explore={false}
-          focus={focus}
-          onSelect={(place) => {
-            if (screen === "base") {
-              setSelectedBuilding(place);
-              setFocus(place);
-            }
-          }}
-        />
+  explore={false}
+  focus={focus}
+  power={gameState?.resources.power ?? 90}
+  health={gameState?.resources.health ?? 100}
+  onSelect={(place) => {
+    if (screen === "base") {
+      setSelectedBuilding(place);
+      setFocus(place);
+    }
+  }}
+/>
       </div>
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#080e22] via-transparent to-[#080e22]/40" />
@@ -577,9 +591,76 @@ export default function GamePage() {
           day={gameState?.day ?? challenge.day}
           title={challenge.title}
           location={challenge.category}
-          onSkip={() => setScreen("mission")}
+          onSkip={() =>
+  setScreen(
+    challenge?.day === 3
+      ? "repair"
+      : challenge?.day === 4
+        ? "water"
+        : challenge?.day === 5
+          ? "rover"
+          : "mission"
+  )
+}
         />
       )}
+
+{/* INTERACTIVE SOLAR REPAIR — DAY 3 */}
+{screen === "repair" && challenge?.day === 3 && (
+  <SolarRepair
+    busy={busy}
+    onClose={() => setScreen("base")}
+    onComplete={() => {
+      const safeChoice = challenge.choices.find(
+        (choice) => choice.id === "safe"
+      );
+
+      if (safeChoice) {
+        void submitDecision(safeChoice);
+      } else {
+        setError("Solar mission choice is missing.");
+      }
+    }}
+  />
+)}
+
+{/* INTERACTIVE WATER RECYCLING — DAY 4 */}
+{screen === "water" && challenge?.day === 4 && (
+  <WaterRecycling
+    busy={busy}
+    onClose={() => setScreen("base")}
+    onComplete={() => {
+      const safeChoice = challenge.choices.find(
+        (choice) => choice.id === "safe"
+      );
+
+      if (safeChoice) {
+        void submitDecision(safeChoice);
+      } else {
+        setError("Water recycling mission choice is missing.");
+      }
+    }}
+  />
+)}
+
+{/* DAY 5 — PLAYABLE ROVER EXPEDITION */}
+{screen === "rover" && challenge?.day === 5 && (
+  <RoverExploration
+    busy={busy}
+    onClose={() => setScreen("base")}
+    onComplete={() => {
+      const safeChoice = challenge.choices.find(
+        (choice) => choice.id === "safe"
+      );
+
+      if (safeChoice) {
+        void submitDecision(safeChoice);
+      } else {
+        setError("Rover mission choice is missing.");
+      }
+    }}
+  />
+)}
 
       {/* Normal mission choices */}
       {screen === "mission" && challenge && (
