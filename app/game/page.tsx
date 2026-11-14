@@ -1,30 +1,40 @@
 
 "use client";
 
-import MissionIntro from "@/components/MissionIntro";
-import type { FocusTarget } from "@/components/LunarScene";
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-
-
+import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
+  AlertTriangle,
   CheckCircle2,
+  LoaderCircle,
   RotateCcw,
   Rocket,
+  ShieldAlert,
   Sparkles,
+  X,
 } from "lucide-react";
 
+import MissionIntro from "@/components/MissionIntro";
 import ResourceMeters from "@/components/ResourceMeters";
 
-import MissionCard, {
-  type MissionOption,
-} from "@/components/MissionCard";
+import type { FocusTarget } from "@/components/LunarScene";
+import type {
+  MissionChallenge,
+  MissionChoice,
+  MissionHistory,
+  MissionState,
+  ResourceChanges,
+} from "@/lib/mission";
+import type { GameEmergency } from "@/lib/emergency-engine";
+import type { NASATimelineEntry } from "@/lib/nasa-event-engine";
 
-import MissionResult from "@/components/MissionResult";
-
-import { frontendMissions } from "@/data/frontendMissions";
+import {
+  loadMission,
+  saveMission,
+} from "@/lib/mission-storage";
 
 const LunarScene = dynamic(
   () => import("@/components/LunarScene"),
@@ -32,295 +42,771 @@ const LunarScene = dynamic(
     ssr: false,
     loading: () => (
       <div className="grid h-full place-items-center text-cyan-100">
-        Preparing your Moon base... 🌙
+        Preparing your Moon base...
       </div>
     ),
   }
 );
 
-type Resources = {
-  power: number;
-  lifeSupport: number;
-  crewSafety: number;
+type GameState = MissionState & {
+  nasaTimeline: NASATimelineEntry[];
+  nasaDataMode: "live" | "historical";
+  resolvedEmergencies: string[];
+  emergencyHistory: {
+    day: number;
+    emergencyId: string;
+    choiceId: string;
+    feedback: string;
+  }[];
 };
 
-const initialResources: Resources = {
-  power: 80,
-  lifeSupport: 85,
-  crewSafety: 90,
+type ApiResponse = {
+  success: boolean;
+  error?: string;
+  message?: string;
+  state?: GameState;
+  challenge?: MissionChallenge | null;
+  emergency?: GameEmergency | null;
+  nextChallenge?: MissionChallenge | null;
+  nextEmergency?: GameEmergency | null;
+  decision?: MissionHistory;
 };
 
-const missionFocus: Record<number, FocusTarget> = {
-  1: "Solar Panels",
-  2: "Greenhouse",
-  3: "Rover",
-};
-
-type GameScreen =
+type Screen =
+  | "loading"
   | "base"
   | "intro"
   | "mission"
+  | "emergency"
   | "result"
   | "finished";
-function clamp(value: number) {
-  return Math.max(0, Math.min(100, value));
+
+type Outcome = {
+  title: string;
+  message: string;
+  effects: ResourceChanges;
+};
+
+const resourceNames: Record<string, string> = {
+  oxygen: "Oxygen",
+  water: "Water",
+  food: "Food",
+  power: "Power",
+  health: "Crew Health",
+};
+
+function isSavedGame(
+  state: MissionState | null
+): state is GameState {
+  if (!state) return false;
+
+  const value = state as Partial<GameState>;
+
+  return (
+    Array.isArray(value.nasaTimeline) &&
+    Array.isArray(value.resolvedEmergencies) &&
+    Array.isArray(value.emergencyHistory) &&
+    (value.nasaDataMode === "live" ||
+      value.nasaDataMode === "historical")
+  );
+}
+
+async function missionRequest(
+  body: Record<string, unknown>
+): Promise<ApiResponse> {
+  const response = await fetch("/api/mission", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as ApiResponse;
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error ?? "Mission request failed.");
+  }
+
+  return data;
+}
+
+function getMissionFocus(
+  challenge: MissionChallenge | null
+): FocusTarget {
+  if (!challenge) return null;
+
+  const text =
+    `${challenge.category} ${challenge.title}`.toLowerCase();
+
+  if (
+    text.includes("greenhouse") ||
+    text.includes("food") ||
+    text.includes("plant")
+  ) {
+    return "Greenhouse";
+  }
+
+  if (
+    text.includes("solar") ||
+    text.includes("power") ||
+    text.includes("battery")
+  ) {
+    return "Solar Panels";
+  }
+
+  if (
+    text.includes("rover") ||
+    text.includes("exploration") ||
+    text.includes("navigation") ||
+    text.includes("sample")
+  ) {
+    return "Rover";
+  }
+
+  return "Habitat";
+}
+
+function EffectLabels({
+  effects,
+}: {
+  effects: ResourceChanges;
+}) {
+  return (
+    <div className="flex flex-wrap justify-center gap-2">
+      {Object.entries(effects).map(([key, value]) => (
+        <span
+          key={key}
+          className={`rounded-full border px-3 py-2 text-xs font-bold ${
+            (value ?? 0) > 0
+              ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"
+              : (value ?? 0) < 0
+                ? "border-rose-300/25 bg-rose-300/10 text-rose-200"
+                : "border-white/10 bg-white/5 text-slate-300"
+          }`}
+        >
+          {resourceNames[key] ?? key}:{" "}
+          {(value ?? 0) > 0 ? "+" : ""}
+          {value ?? 0}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function GamePage() {
+  const initialized = useRef(false);
 
-  const [focusedArea, setFocusedArea] =
-  useState<FocusTarget>(null);
+  const [gameState, setGameState] =
+    useState<GameState | null>(null);
 
-  const [missionIndex, setMissionIndex] = useState(0);
+  const [challenge, setChallenge] =
+    useState<MissionChallenge | null>(null);
 
-  const [resources, setResources] =
-    useState<Resources>({ ...initialResources });
+  const [emergency, setEmergency] =
+    useState<GameEmergency | null>(null);
 
-  const [screen, setScreen] = useState<GameScreen>("base");
+  const [nextChallenge, setNextChallenge] =
+    useState<MissionChallenge | null>(null);
 
-  const [selectedOption, setSelectedOption] =
-    useState<MissionOption | null>(null);
+  const [nextEmergency, setNextEmergency] =
+    useState<GameEmergency | null>(null);
+
+  const [screen, setScreen] = useState<Screen>("loading");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+
+  const [focus, setFocus] =
+    useState<FocusTarget>(null);
 
   const [selectedBuilding, setSelectedBuilding] =
     useState<string | null>(null);
 
-  const mission = frontendMissions[missionIndex];
-  
+  const [selectedChoice, setSelectedChoice] =
+    useState<string | null>(null);
+
+  // Start a new game or restore an existing one.
   useEffect(() => {
-  if (screen !== "intro") return;
+    if (initialized.current) return;
+    initialized.current = true;
 
-  const timer = window.setTimeout(() => {
-    setScreen("mission");
-  }, 2600);
+    async function initialize() {
+      try {
+        const saved = loadMission();
 
-  return () => window.clearTimeout(timer);
-}, [screen, missionIndex]);
+        if (isSavedGame(saved)) {
+          const data = await missionRequest({
+            action: "challenge",
+            state: saved,
+          });
 
-  // Called once when the player confirms a decision.
-  function handleDecision(option: MissionOption) {
-    setResources((previous) => ({
-      power: clamp(
-        previous.power + (option.changes.power ?? 0)
-      ),
-      lifeSupport: clamp(
-        previous.lifeSupport +
-          (option.changes.lifeSupport ?? 0)
-      ),
-      crewSafety: clamp(
-        previous.crewSafety +
-          (option.changes.crewSafety ?? 0)
-      ),
-    }));
+          setGameState(saved);
+          setChallenge(data.challenge ?? null);
+          setEmergency(data.emergency ?? null);
+          setScreen(
+            saved.status === "active" ? "base" : "finished"
+          );
+        } else {
+          const data = await missionRequest({
+            action: "start",
+          });
 
-    setSelectedOption(option);
-    setScreen("result");
-  }
+          if (!data.state) {
+            throw new Error("Mission state was not returned.");
+          }
 
-  function handleNextMission() {
-  if (missionIndex + 1 >= frontendMissions.length) {
-    setScreen("finished");
-    return;
-  }
+          setGameState(data.state);
+          setChallenge(data.challenge ?? null);
+          setEmergency(data.emergency ?? null);
+          saveMission(data.state);
+          setScreen("base");
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to start mission."
+        );
+        setScreen("loading");
+      }
+    }
 
-  const nextIndex = missionIndex + 1;
-  const nextMission = frontendMissions[nextIndex];
+    void initialize();
+  }, []);
 
-  setMissionIndex(nextIndex);
-  setFocusedArea(missionFocus[nextMission.day] ?? null);
+  // Show the cinematic introduction before choices.
+  useEffect(() => {
+    if (screen !== "intro") return;
 
-  setSelectedOption(null);
-  setSelectedBuilding(null);
-  setScreen("base");
-}
+    const timer = window.setTimeout(() => {
+      setScreen("mission");
+    }, 2600);
 
-  function restartDemo() {
-    setMissionIndex(0);
-    setResources({ ...initialResources });
-    setSelectedOption(null);
+    return () => window.clearTimeout(timer);
+  }, [screen]);
+
+  function beginDay() {
+    setError("");
+    setSelectedChoice(null);
     setSelectedBuilding(null);
-    setFocusedArea(null);
+
+    if (emergency) {
+      setScreen("emergency");
+      return;
+    }
+
+    if (!challenge) {
+      setError("No mission challenge is available.");
+      return;
+    }
+
+    setFocus(getMissionFocus(challenge));
+    setScreen("intro");
+  }
+
+  async function submitDecision(choice: MissionChoice) {
+    if (!gameState || busy) return;
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const data = await missionRequest({
+        action: "decide",
+        state: gameState,
+        choiceId: choice.id,
+      });
+
+      if (!data.state) {
+        throw new Error("Updated mission state is missing.");
+      }
+
+      setGameState(data.state);
+      saveMission(data.state);
+
+      setNextChallenge(data.nextChallenge ?? null);
+      setNextEmergency(data.nextEmergency ?? null);
+
+      setOutcome({
+        title: "Mission Update!",
+        message:
+          data.decision?.feedback ??
+          data.message ??
+          choice.feedback,
+        effects: data.decision?.effects ?? choice.effects,
+      });
+
+      setScreen("result");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not submit decision."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resolveEmergency(choiceId: string) {
+    if (!gameState || !emergency || busy) return;
+
+    const choice = emergency.choices.find(
+      (item) => item.id === choiceId
+    );
+
+    if (!choice) return;
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const data = await missionRequest({
+        action: "resolve-emergency",
+        state: gameState,
+        emergencyId: emergency.id,
+        choiceId,
+      });
+
+      if (!data.state) {
+        throw new Error("Updated mission state is missing.");
+      }
+
+      setGameState(data.state);
+      saveMission(data.state);
+
+      setNextEmergency(data.nextEmergency ?? null);
+      setNextChallenge(data.challenge ?? null);
+
+      setOutcome({
+        title: "Emergency Response!",
+        message: data.message ?? choice.feedback,
+        effects: choice.effects,
+      });
+
+      setScreen("result");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not resolve emergency."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function continueGame() {
+    setOutcome(null);
+    setSelectedChoice(null);
+
+    if (!gameState || gameState.status !== "active") {
+      setScreen("finished");
+      return;
+    }
+
+    setEmergency(nextEmergency);
+    setChallenge(nextChallenge);
+    setFocus(getMissionFocus(nextChallenge));
     setScreen("base");
   }
 
+  async function startNewGame() {
+    if (busy) return;
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const data = await missionRequest({
+        action: "start",
+      });
+
+      if (!data.state) {
+        throw new Error("Unable to create a new mission.");
+      }
+
+      setGameState(data.state);
+      setChallenge(data.challenge ?? null);
+      setEmergency(data.emergency ?? null);
+      setNextChallenge(null);
+      setNextEmergency(null);
+      setOutcome(null);
+      setSelectedChoice(null);
+      setFocus(null);
+      setSelectedBuilding(null);
+
+      saveMission(data.state);
+      setScreen("base");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to restart the mission."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const isFinished =
+    gameState?.status === "completed" ||
+    gameState?.status === "failed";
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#080e22] text-white">
-
-      {/* INTERACTIVE 3D MOON WORLD */}
+      {/* 3D lunar environment */}
       <div className="absolute inset-0">
-      <LunarScene
-  explore={false}
-  focus={focusedArea}
-  onSelect={(place) => {
-    setSelectedBuilding(place);
-    setFocusedArea(place);
-  }}
-/>
+        <LunarScene
+          explore={false}
+          focus={focus}
+          onSelect={(place) => {
+            if (screen === "base") {
+              setSelectedBuilding(place);
+              setFocus(place);
+            }
+          }}
+        />
       </div>
 
-      {/* GRADIENT OVERLAY */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#080e22] via-transparent to-[#080e22]/40" />
 
-      {/* TOP GAME HUD */}
-      <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between gap-3 p-4 sm:p-8">
-
+      {/* Top navigation */}
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4 sm:p-8">
         <Link
           href="/"
-          className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-[#101b33]/85 px-4 py-3 text-sm font-bold backdrop-blur-xl transition hover:bg-[#243651]"
+          className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-[#101b33]/85 px-4 py-3 text-sm font-bold backdrop-blur-xl"
         >
           <ArrowLeft size={17} />
           Base
         </Link>
 
-        <div className="rounded-full border border-cyan-200/20 bg-[#101b33]/85 px-5 py-3 text-xs font-extrabold tracking-[0.15em] backdrop-blur-xl sm:text-sm">
-          DAY {String(mission.day).padStart(2, "0")} / 30
+        <div className="rounded-full border border-white/15 bg-[#101b33]/90 px-5 py-3 text-sm font-black backdrop-blur-xl">
+          DAY {String(gameState?.day ?? 1).padStart(2, "0")} / 30
         </div>
-
       </header>
 
-      {/* CLICKABLE BUILDING INFORMATION */}
+      {/* Selected building */}
       {selectedBuilding && screen === "base" && (
-        <div className="pointer-events-auto absolute right-4 top-24 z-10 w-60 rounded-2xl border border-cyan-200/20 bg-[#101b33]/95 p-4 shadow-xl backdrop-blur-xl sm:right-8">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-[10px] font-bold tracking-widest text-cyan-200">
-                MOON BASE
-              </p>
-
-              <h2 className="mt-1 text-lg font-black">
-                {selectedBuilding}
-              </h2>
-            </div>
-
-            <button
-              onClick={() => setSelectedBuilding(null)}
-              aria-label="Close building info"
-              className="text-slate-400 hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
+        <div className="absolute right-4 top-24 z-10 rounded-2xl border border-cyan-300/20 bg-[#101b33]/95 px-5 py-4 backdrop-blur-xl">
+          <button
+            onClick={() => setSelectedBuilding(null)}
+            className="absolute right-3 top-2 text-slate-400"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+          <p className="text-xs text-cyan-200">MOON BASE</p>
+          <h2 className="mt-2 pr-6 text-lg font-black">
+            {selectedBuilding}
+          </h2>
         </div>
       )}
 
-      {/* BOTTOM GAME HUD */}
-      {screen !== "finished" && (
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 p-4 sm:p-8">
-          <div className="pointer-events-auto mx-auto max-w-3xl space-y-5">
+      {/* HUD */}
+      {gameState && screen !== "finished" && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 p-4 sm:p-8">
+          <div className="pointer-events-auto mx-auto max-w-4xl space-y-4">
+            <ResourceMeters resources={gameState.resources} />
 
-            <ResourceMeters
-              power={resources.power}
-              lifeSupport={resources.lifeSupport}
-              crewSafety={resources.crewSafety}
-            />
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="rounded-full bg-[#101b33]/85 px-4 py-2 text-xs text-slate-200">
+                ⭐ Score: {gameState.score}
+              </span>
+
+              <span className="rounded-full bg-[#101b33]/85 px-4 py-2 text-xs text-slate-200">
+                Crew Morale: {gameState.crew.morale}%
+              </span>
+            </div>
 
             {screen === "base" && (
               <button
-                onClick={() => {
-  setFocusedArea(missionFocus[mission.day] ?? null);
-  setSelectedBuilding(null);
-  setScreen("intro");
-}}
-                className="mx-auto flex items-center gap-3 rounded-2xl bg-[#ffd080] px-8 py-4 font-black text-[#17213a] shadow-lg shadow-amber-500/20 transition hover:scale-105 hover:bg-[#ffe0a6]"
+                onClick={beginDay}
+                className="mx-auto flex items-center gap-3 rounded-2xl bg-[#ffd080] px-8 py-4 font-black text-[#17213a] transition hover:scale-105"
               >
-                <Rocket size={20} />
-                BEGIN DAY {String(mission.day).padStart(2, "0")}
+                {emergency ? (
+                  <>
+                    <ShieldAlert size={20} />
+                    RESPOND TO EMERGENCY
+                  </>
+                ) : (
+                  <>
+                    <Rocket size={20} />
+                    BEGIN DAY {String(gameState.day).padStart(2, "0")}
+                  </>
+                )}
               </button>
             )}
-
-            {screen === "result" && (
-              <p className="text-center text-sm font-semibold text-emerald-200">
-                <CheckCircle2
-                  size={17}
-                  className="mr-2 inline"
-                />
-                Decision recorded!
-              </p>
-            )}
-
           </div>
         </div>
       )}
- 
-{/* CINEMATIC MISSION INTRODUCTION */}
-{screen === "intro" && (
-  <MissionIntro
-    day={mission.day}
-    title={mission.title}
-    location={
-      mission.day === 1
-        ? "Solar Power Station"
-        : mission.day   === 2
-          ? "Moon Greenhouse"
-          : mission.day === 3
-            ? "Lunar Rover"
-            : "Moon Base"
-    }
-    onSkip={() => setScreen("mission")}
-  />
-)}
 
-      {/* MISSION POPUP */}
-      {screen === "mission" && (
-        <MissionCard
-          key={mission.day}
-          mission={mission}
-          onClose={() => setScreen("base")}
-          onConfirm={handleDecision}
+      {/* Loading */}
+      {screen === "loading" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080e22]/90 p-6">
+          <div className="text-center">
+            <LoaderCircle
+              size={42}
+              className="mx-auto mb-5 animate-spin text-cyan-300"
+            />
+            <h2 className="text-2xl font-black">
+              Preparing Mission...
+            </h2>
+
+            {error && (
+              <div className="mt-5 max-w-md space-y-4">
+                <p className="text-sm text-rose-200">{error}</p>
+                <button
+                  onClick={startNewGame}
+                  disabled={busy}
+                  className="rounded-xl bg-[#ffd080] px-6 py-3 font-bold text-slate-900 disabled:opacity-50"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Cinematic intro */}
+      {screen === "intro" && challenge && (
+        <MissionIntro
+          day={gameState?.day ?? challenge.day}
+          title={challenge.title}
+          location={challenge.category}
+          onSkip={() => setScreen("mission")}
         />
       )}
 
-      {/* RESULT POPUP */}
-      {screen === "result" && selectedOption && (
-        <MissionResult
-          mission={mission}
-          option={selectedOption}
-          onContinue={handleNextMission}
-          isLastMission={
-            missionIndex === frontendMissions.length - 1
-          }
-        />
-      )}
-
-      {/* DEMO COMPLETE */}
-      {screen === "finished" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/85 p-5 backdrop-blur-xl">
-          <div className="w-full max-w-lg rounded-[30px] border border-amber-200/20 bg-[#101b34] p-8 text-center shadow-2xl sm:p-12">
-
-            <div className="mb-6 text-7xl">🏆</div>
-
-            <div className="mb-3 flex items-center justify-center gap-2 text-amber-200">
-              <Sparkles size={18} />
-              <span className="text-xs font-black tracking-widest">
-                DEMO COMPLETED
+      {/* Normal mission choices */}
+      {screen === "mission" && challenge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/75 p-4 backdrop-blur-md">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="real-mission-title"
+            className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-cyan-200/20 bg-[#101b34] p-6 shadow-2xl sm:p-8"
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <span className="text-xs font-bold tracking-widest text-cyan-200">
+                DAY {challenge.day} · {challenge.category}
               </span>
-              <Sparkles size={18} />
+              <button
+                aria-label="Close mission"
+                onClick={() => setScreen("base")}
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            <h1 className="text-3xl font-black sm:text-4xl">
-              Great Job, Commander!
-            </h1>
+            <h2
+              id="real-mission-title"
+              className="text-3xl font-black"
+            >
+              {challenge.title}
+            </h2>
 
-            <p className="mt-5 leading-7 text-slate-300">
-              You completed all 3 sample missions!
-              The full 30-day adventure is coming next.
+            <p className="mt-4 leading-7 text-slate-300">
+              {challenge.description}
             </p>
 
-            <div className="mt-7">
-              <ResourceMeters
-                power={resources.power}
-                lifeSupport={resources.lifeSupport}
-                crewSafety={resources.crewSafety}
-              />
+            {challenge.nasaEventId && (
+              <p className="mt-4 rounded-xl bg-cyan-300/10 p-3 text-xs text-cyan-200">
+                NASA DONKI observation · {challenge.nasaEventId}
+              </p>
+            )}
+
+            <div className="mt-7 space-y-3">
+              {challenge.choices.map((choice) => (
+                <button
+                  key={choice.id}
+                  onClick={() => setSelectedChoice(choice.id)}
+                  className={`w-full rounded-2xl border p-4 text-left transition ${
+                    selectedChoice === choice.id
+                      ? "border-cyan-300 bg-cyan-300/15"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="block font-bold">
+                    {choice.label}
+                  </span>
+                  <span className="mt-1 block text-sm text-slate-300">
+                    {choice.description}
+                  </span>
+                </button>
+              ))}
             </div>
 
             <button
-              onClick={restartDemo}
-              className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#ffd080] px-6 py-4 font-black text-[#17213a] transition hover:bg-[#ffe0a6]"
+              disabled={!selectedChoice || busy}
+              onClick={() => {
+                const choice = challenge.choices.find(
+                  (item) => item.id === selectedChoice
+                );
+                if (choice) void submitDecision(choice);
+              }}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] px-6 py-4 font-black text-slate-900 disabled:opacity-40"
+            >
+              {busy ? "Processing..." : "CONFIRM DECISION"}
+              <ArrowRight size={19} />
+            </button>
+          </section>
+        </div>
+      )}
+
+      {/* Emergency choices */}
+      {screen === "emergency" && emergency && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#180c18]/85 p-4 backdrop-blur-md">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="emergency-title"
+            className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-rose-300/30 bg-[#211528] p-6 shadow-2xl sm:p-8"
+          >
+            <AlertTriangle
+              size={39}
+              className="mb-4 text-rose-300"
+            />
+
+            <p className="text-xs font-black tracking-widest text-rose-300">
+              {emergency.severity.toUpperCase()} ALERT
+            </p>
+
+            <h2
+              id="emergency-title"
+              className="mt-3 text-3xl font-black"
+            >
+              {emergency.title}
+            </h2>
+
+            <p className="mt-4 leading-7 text-slate-300">
+              {emergency.description}
+            </p>
+
+            <div className="mt-7 space-y-3">
+              {emergency.choices.map((choice) => (
+                <button
+                  key={choice.id}
+                  disabled={busy}
+                  onClick={() => {
+                    void resolveEmergency(choice.id);
+                  }}
+                  className="block w-full rounded-2xl border border-white/15 bg-white/5 p-4 text-left transition hover:border-rose-300/50 hover:bg-white/10 disabled:opacity-50"
+                >
+                  <span className="block font-bold">
+                    {choice.label}
+                  </span>
+                  <span className="mt-1 block text-sm text-slate-300">
+                    {choice.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {busy && (
+              <p className="mt-4 text-center text-sm">
+                Applying emergency response...
+              </p>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Results */}
+      {screen === "result" && outcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/80 p-4 backdrop-blur-md">
+          <section className="w-full max-w-lg rounded-[28px] border border-white/15 bg-[#101b34] p-7 text-center shadow-2xl">
+            <CheckCircle2
+              size={45}
+              className="mx-auto mb-4 text-emerald-300"
+            />
+
+            <h2 className="text-3xl font-black">
+              {outcome.title}
+            </h2>
+
+            <p className="my-6 leading-7 text-slate-300">
+              {outcome.message}
+            </p>
+
+            <EffectLabels effects={outcome.effects} />
+
+            <p className="mt-4 text-xs text-slate-400">
+              Changes include simulated mission operations.
+            </p>
+
+            <button
+              onClick={continueGame}
+              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] p-4 font-black text-slate-900"
+            >
+              {isFinished ? "VIEW MISSION REPORT" : "CONTINUE"}
+              <ArrowRight size={19} />
+            </button>
+          </section>
+        </div>
+      )}
+
+      {/* Mission report */}
+      {screen === "finished" && gameState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/90 p-4 backdrop-blur-xl">
+          <section className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-amber-200/20 bg-[#101b34] p-7 text-center shadow-2xl sm:p-10">
+            <Sparkles
+              size={48}
+              className="mx-auto mb-5 text-[#ffd080]"
+            />
+
+            <h1 className="text-3xl font-black">
+              {gameState.status === "completed"
+                ? "Mission Accomplished!"
+                : "Mission Ended"}
+            </h1>
+
+            <p className="mt-4 text-slate-300">
+              {gameState.status === "completed"
+                ? "You guided your crew through 30 mission days!"
+                : "The Moon base needs another brave commander."}
+            </p>
+
+            <div className="mt-7 space-y-3">
+              <p className="text-xl font-bold">
+                ⭐ Score: {gameState.score}
+              </p>
+
+              <p className="text-sm text-slate-300">
+                Days completed: {gameState.history.length} / 30
+              </p>
+
+              <ResourceMeters resources={gameState.resources} />
+            </div>
+
+            <button
+              onClick={startNewGame}
+              disabled={busy}
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] p-4 font-black text-slate-900 disabled:opacity-50"
             >
               <RotateCcw size={19} />
-              PLAY DEMO AGAIN
+              {busy ? "Preparing..." : "START NEW MISSION"}
             </button>
+          </section>
+        </div>
+      )}
 
+      {/* Request errors */}
+      {error && screen !== "loading" && (
+        <div
+          role="alert"
+          className="fixed left-4 right-4 top-24 z-[70] mx-auto max-w-lg rounded-xl border border-rose-300/30 bg-[#321a26] p-4 text-sm text-rose-100 shadow-xl"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span>{error}</span>
+            <button
+              onClick={() => setError("")}
+              aria-label="Dismiss error"
+            >
+              <X size={18} />
+            </button>
           </div>
         </div>
       )}
