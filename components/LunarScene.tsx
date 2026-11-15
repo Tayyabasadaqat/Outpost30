@@ -12,10 +12,14 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 
+export type Place =
+  | "Habitat"
+  | "Greenhouse"
+  | "Solar Panels"
+  | "Rover"
+  | "Apollo";
 
-type Place = "Habitat" | "Greenhouse" | "Solar Panels";
-
-export type FocusTarget = Place | "Rover" | null;
+export type FocusTarget = Place | null;
 
 type SceneProps = {
   explore: boolean;
@@ -520,10 +524,40 @@ function MoonWorld({
 />
       <Greenhouse onSelect={onSelect} />
       <SolarPanels onSelect={onSelect} />
-      <AnimatedRover />
+      
+      {/* Interactive lunar rover */}
+      <group
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect("Rover");
+        }}
+        onPointerOver={() => {
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <AnimatedRover />
+      </group>
+
+      {/* Original NASA-sourced Apollo model */}
       <Suspense fallback={null}>
-  <ApolloLander />
-</Suspense>
+        <group
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect("Apollo");
+          }}
+          onPointerOver={() => {
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = "auto";
+          }}
+        >
+          <ApolloLander />
+        </group>
+      </Suspense>
       <BaseWarning power={power} health={health} />
     </>
   );
@@ -550,6 +584,10 @@ const cameraLocations = {
   Rover: {
     position: [-5.5, 2.8, 7],
     target: [-3, 0.7, 3.8],
+  },
+  Apollo: {
+    position: [11.2, 4.2, 2],
+    target: [7.2, 1.4, -3],
   },
 } satisfies Record<
   string,
