@@ -1,40 +1,52 @@
-/* OUTPOST 30 — Landing page */
 
-.landing {
+/* OUTPOST 30 — INTERACTIVE 3D LANDING */
+
+.real3d-landing {
   position: relative;
-  min-height: 100svh;
+  height: 100svh;
+  min-height: 600px;
   overflow: hidden;
-  background: #080e22;
-  color: #ffffff;
+  isolation: isolate;
+  background: #050912;
+  color: white;
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* 3D canvas */
-
-.landing-world {
+.real3d-world {
   position: absolute;
   inset: 0;
   z-index: 0;
 }
 
-.landing-world canvas {
+.real3d-world canvas {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: grab;
 }
 
-.moon-loading {
-  display: grid;
-  place-items: center;
-  width: 100%;
+.real3d-world canvas:active {
+  cursor: grabbing;
+}
+
+.real3d-loading {
   height: 100%;
-  color: #d5eaff;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 15px;
+  color: #a5d8ee;
+  letter-spacing: 2px;
 }
 
-/* Dark gradient for readable text */
+.real3d-loading-orbit {
+  font-size: 48px;
+  animation: real3dPulse 2s infinite;
+}
 
-.landing-shade {
+.real3d-atmosphere {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -42,421 +54,428 @@
   background:
     linear-gradient(
       90deg,
-      rgba(5, 10, 27, 0.99) 0%,
-      rgba(5, 10, 27, 0.91) 24%,
-      rgba(5, 10, 27, 0.46) 53%,
-      transparent 85%
+      rgba(3, 8, 19, 0.84),
+      rgba(3, 8, 19, 0.35) 32%,
+      transparent 65%
     ),
     linear-gradient(
       0deg,
-      rgba(4, 8, 24, 0.72),
-      transparent 30%
+      rgba(2, 6, 15, 0.55),
+      transparent 28%
     );
 }
 
-/* Navigation */
+/* HEADER */
 
-.landing-header {
-  position: relative;
-  z-index: 3;
+.real3d-header {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 30px 6%;
-}
-
-.landing-logo {
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: white;
-  text-decoration: none;
-  font-size: 21px;
-  font-weight: 900;
-  letter-spacing: 1.5px;
+  padding: 25px 5%;
+  pointer-events: none;
 }
 
-.landing-logo > span:last-child {
-  color: #83e8ff;
-}
-
-.logo-star {
-  color: #ffd080;
-  font-size: 30px;
-  margin-right: 5px;
-}
-
-.landing-help {
-  display: inline-flex;
+.real3d-brand {
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 30px;
-  background: rgba(15, 25, 53, 0.5);
-  color: white;
-  cursor: pointer;
-  font-weight: 700;
-  backdrop-filter: blur(12px);
-  transition: background 0.2s, transform 0.2s;
-}
-
-.landing-help:hover {
-  background: rgba(48, 75, 116, 0.65);
-  transform: translateY(-2px);
-}
-
-/* Hero */
-
-.landing-hero {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  min-height: calc(100svh - 145px);
-  padding: 0 6% 70px;
-  pointer-events: none;
-}
-
-.landing-content {
-  max-width: 660px;
-  pointer-events: auto;
-  animation: landingReveal 0.8s ease-out both;
-}
-
-.landing-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 26px;
-  color: #a7e7f6;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 2.5px;
-}
-
-.status-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #83e6c4;
-  box-shadow: 0 0 18px rgba(131, 230, 196, 0.7);
-  animation: dotPulse 2s infinite;
-}
-
-.landing-hero h1 {
-  margin: 0;
-  font-size: clamp(48px, 6vw, 91px);
-  font-weight: 900;
-  line-height: 1.07;
-  letter-spacing: -3px;
-  text-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-}
-
-.landing-hero h1 span {
-  color: #ffd389;
-}
-
-.landing-description {
-  margin: 27px 0 34px;
-  font-size: clamp(16px, 1.5vw, 20px);
-  line-height: 1.7;
-  color: #c5d3ec;
-}
-
-.landing-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  align-items: center;
-}
-
-.landing-start {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 13px;
-  min-height: 60px;
-  padding: 0 26px;
-  border: none;
-  border-radius: 17px;
-  background: #ffd080;
-  color: #17213a;
-  font-weight: 900;
-  font-size: 14px;
-  letter-spacing: 0.5px;
+  color: #fff;
   text-decoration: none;
-  cursor: pointer;
-  box-shadow: 0 8px 30px rgba(255, 179, 86, 0.23);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.landing-start:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 34px rgba(255, 179, 86, 0.4);
-}
-
-.landing-explore {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60px;
-  padding: 0 23px;
-  border: 1px solid rgba(178, 215, 255, 0.35);
-  border-radius: 17px;
-  background: rgba(16, 29, 58, 0.55);
-  color: #e9f4ff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: background 0.2s, transform 0.2s;
-}
-
-.landing-explore:hover {
-  background: rgba(47, 73, 112, 0.7);
-  transform: translateY(-3px);
-}
-
-/* Bottom text */
-
-.landing-bottom {
-  position: absolute;
-  z-index: 2;
-  bottom: 28px;
-  left: 6%;
-  right: 6%;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  color: #a8bad7;
-  font-size: 11px;
-  font-weight: 700;
+  font-weight: 900;
+  font-size: 21px;
   letter-spacing: 1px;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.landing-bottom-right {
-  color: #c8d5ea;
-  letter-spacing: 2px;
+.real3d-brand strong {
+  color: #a1e1f5;
 }
 
-/* Building information popup */
-
-.landing-info {
-  position: absolute;
-  right: 6%;
-  bottom: 90px;
-  z-index: 5;
-  width: min(310px, 88vw);
-  padding: 23px;
-  border: 1px solid rgba(146, 216, 255, 0.35);
-  border-radius: 22px;
-  background: rgba(8, 17, 39, 0.9);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(18px);
-  animation: landingReveal 0.3s ease-out;
-}
-
-.landing-info > button {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  background: transparent;
-  color: white;
-  border: none;
-  cursor: pointer;
-}
-
-.landing-info > span {
-  color: #91dff7;
-  font-size: 10px;
-  letter-spacing: 2px;
-}
-
-.landing-info h2 {
-  margin: 10px 0;
-  font-size: 25px;
-  font-weight: 800;
-}
-
-.landing-info p {
-  margin: 0;
-  color: #c2d2e9;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-/* How to play modal */
-
-.landing-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
+.real3d-brand-symbol {
   display: grid;
   place-items: center;
-  padding: 20px;
-  background: rgba(3, 7, 21, 0.82);
-  backdrop-filter: blur(14px);
+  width: 42px;
+  height: 42px;
+  border: 1px solid #8ac7df55;
+  border-radius: 12px;
+  background: #11283f99;
+  color: #a2e7f9;
 }
 
-.landing-modal {
-  position: relative;
-  width: min(450px, 100%);
-  padding: 36px;
-  border: 1px solid rgba(161, 213, 255, 0.3);
-  border-radius: 28px;
-  background: #121e38;
-  text-align: center;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+.real3d-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
 }
 
-.landing-modal-close {
+.real3d-icon-button,
+.real3d-header-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 43px;
+  padding: 0 17px;
+  border-radius: 12px;
+  border: 1px solid #ffffff40;
+  background: #0b1b30b8;
+  color: white;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.real3d-header-play {
+  background: #b8e9f7;
+  color: #091829;
+}
+
+/* HERO */
+
+.real3d-hero {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 5%;
+  width: min(440px, 45vw);
+  transform: translateY(-48%);
+  pointer-events: none;
+  animation: real3dReveal 0.9s ease both;
+}
+
+.real3d-hero > * {
+  pointer-events: auto;
+}
+
+.real3d-kicker {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 23px;
+  color: #afd8e9;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+}
+
+.real3d-status-light {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #75e9c1;
+  box-shadow: 0 0 15px #75e9c1;
+}
+
+.real3d-hero h1 {
+  margin: 0;
+  font-size: clamp(44px, 5.1vw, 78px);
+  line-height: 1.06;
+  letter-spacing: -2px;
+  font-weight: 900;
+  text-shadow: 0 4px 35px #0008;
+}
+
+.real3d-hero h1 span {
+  display: block;
+  color: #b1e8f5;
+}
+
+.real3d-hero p {
+  margin: 25px 0 30px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #d0e1ed;
+}
+
+.real3d-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.real3d-start,
+.real3d-explore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 22px;
+  border-radius: 13px;
+  border: 1px solid #bceeff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.real3d-start {
+  background: #b8e9f7;
+  color: #08172a;
+}
+
+.real3d-explore {
+  background: #0b1b30b8;
+  color: #f4fbff;
+  border-color: #ffffff55;
+  backdrop-filter: blur(12px);
+}
+
+.real3d-start:hover,
+.real3d-explore:hover {
+  transform: translateY(-3px);
+}
+
+/* LOCATION PANEL */
+
+.real3d-location {
+  position: absolute;
+  z-index: 6;
+  right: 5%;
+  bottom: 13%;
+  width: min(350px, 88vw);
+  padding: 28px;
+  border: 1px solid #a2ddf655;
+  border-radius: 20px;
+  background: #091629e8;
+  backdrop-filter: blur(22px);
+  box-shadow: 0 25px 70px #0009;
+  animation: real3dReveal 0.45s ease both;
+}
+
+.real3d-location-close,
+.real3d-modal-close {
   position: absolute;
   top: 17px;
   right: 17px;
   border: none;
-  background: transparent;
-  color: white;
+  background: none;
+  color: #fff;
   cursor: pointer;
 }
 
-.landing-modal-emoji {
-  margin-bottom: 14px;
-  font-size: 54px;
-}
-
-.landing-modal h2 {
-  margin: 0 0 14px;
-  font-size: 29px;
+.real3d-location-tag {
+  color: #94dff4;
+  font-size: 10px;
+  letter-spacing: 2px;
   font-weight: 900;
 }
 
-.landing-modal p {
-  margin: 0;
-  color: #c5d4ed;
-  font-size: 15px;
-  line-height: 1.7;
+.real3d-location-icon {
+  margin-top: 20px;
+  font-size: 40px;
 }
 
-.landing-steps {
+.real3d-location h2 {
+  margin: 15px 0 10px;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.real3d-location p,
+.real3d-modal p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #c8d8e7;
+}
+
+.real3d-location-play {
+  margin-top: 24px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px;
+  background: #b8e9f7;
+  border-radius: 12px;
+  color: #071626;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.real3d-location-reset {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 18px auto 0;
+  border: 0;
+  background: none;
+  color: #a8d9e8;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* BOTTOM CONTROLS */
+
+.real3d-bottom {
+  position: absolute;
+  z-index: 5;
+  bottom: 28px;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.real3d-control-tip,
+.real3d-reset {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #c3d8e6;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.real3d-reset {
+  padding: 11px 15px;
+  border-radius: 9px;
+  border: 1px solid #ffffff33;
+  background: #0c1b30a8;
+  color: white;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* MODAL */
+
+.real3d-modal-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #030812db;
+  backdrop-filter: blur(12px);
+}
+
+.real3d-modal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 36px;
+  border: 1px solid #a0d9ee55;
+  border-radius: 22px;
+  background: #101d31;
+}
+
+.real3d-modal h2 {
+  margin: 20px 0;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.real3d-help-steps {
+  display: flex;
+  justify-content: space-between;
   gap: 10px;
   margin: 25px 0;
-}
-
-.landing-steps span {
-  padding: 10px 12px;
-  border-radius: 13px;
-  background: #1e3150;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.landing-modal .landing-start {
+.real3d-modal .real3d-start {
   width: 100%;
 }
 
-/* Subtle animations */
+/* ANIMATIONS */
 
-@keyframes landingReveal {
+@keyframes real3dReveal {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    translate: 0 20px;
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
+    translate: 0 0;
   }
 }
 
-@keyframes dotPulse {
-  0%, 100% {
-    opacity: 1;
-  }
+@keyframes real3dPulse {
   50% {
-    opacity: 0.4;
+    opacity: 0.35;
+    transform: scale(0.9);
   }
 }
 
-/* Responsive layout */
+/* MOBILE */
 
 @media (max-width: 768px) {
-  .landing-header {
-    padding: 22px 6%;
+  .real3d-header {
+    padding: 18px 5%;
   }
 
-  .landing-logo {
-    font-size: 17px;
+  .real3d-brand {
+    font-size: 16px;
   }
 
-  .landing-help {
-    padding: 10px 12px;
-    font-size: 12px;
+  .real3d-hero {
+    top: auto;
+    bottom: 100px;
+    left: 6%;
+    width: 88%;
+    transform: none;
   }
 
-  .landing-shade {
-    background:
-      linear-gradient(
-        0deg,
-        #080e22 5%,
-        rgba(8, 14, 34, 0.94) 28%,
-        rgba(8, 14, 34, 0.23) 72%,
-        rgba(8, 14, 34, 0.25)
-      );
+  .real3d-hero h1 {
+    font-size: clamp(43px, 9vw, 62px);
   }
 
-  .landing-hero {
-    align-items: flex-end;
-    min-height: calc(100svh - 95px);
-    padding: 0 6% 110px;
+  .real3d-hero p {
+    font-size: 14px;
+    margin: 17px 0 22px;
   }
 
-  .landing-hero h1 {
-    font-size: clamp(42px, 9vw, 65px);
-    letter-spacing: -2px;
+  .real3d-atmosphere {
+    background: linear-gradient(
+      0deg,
+      #050912 0%,
+      #050912d9 22%,
+      transparent 75%
+    );
   }
 
-  .landing-description {
-    margin: 18px 0 25px;
-    font-size: 15px;
+  .real3d-bottom {
+    bottom: 18px;
   }
 
-  .landing-eyebrow {
-    margin-bottom: 16px;
-    font-size: 9px;
-  }
-
-  .landing-start,
-  .landing-explore {
-    min-height: 52px;
-    padding: 0 18px;
-    font-size: 12px;
-  }
-
-  .landing-bottom {
-    bottom: 22px;
-    font-size: 10px;
-  }
-
-  .landing-bottom-right {
+  .real3d-control-tip {
     display: none;
   }
 
-  .landing-info {
-    right: 6%;
-    bottom: auto;
-    top: 100px;
+  .real3d-location {
+    bottom: 80px;
+    left: 5%;
+    right: 5%;
+    width: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-content,
-  .landing-info,
-  .status-dot {
+  .real3d-hero,
+  .real3d-location,
+  .real3d-loading-orbit {
     animation: none;
+  }
+
+  .real3d-start,
+  .real3d-explore {
+    transition: none;
   }
 }

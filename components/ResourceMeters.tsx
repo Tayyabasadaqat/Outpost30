@@ -2,78 +2,93 @@
 "use client";
 
 import {
-  Zap,
+  Droplets,
   HeartPulse,
-  ShieldCheck,
+  Sprout,
+  Wind,
+  Zap,
 } from "lucide-react";
 
+import type { Resources } from "@/lib/mission";
+
 type ResourceMetersProps = {
-  power?: number;
-  lifeSupport?: number;
-  crewSafety?: number;
+  resources: Resources;
 };
 
-export default function ResourceMeters({
-  power = 80,
-  lifeSupport = 85,
-  crewSafety = 90,
-}: ResourceMetersProps) {
-  const resources = [
-    {
-      label: "POWER",
-      value: power,
-      icon: Zap,
-      color: "#f4c76e",
-    },
-    {
-      label: "LIFE SUPPORT",
-      value: lifeSupport,
-      icon: HeartPulse,
-      color: "#78d4c5",
-    },
-    {
-      label: "CREW SAFETY",
-      value: crewSafety,
-      icon: ShieldCheck,
-      color: "#80b8f9",
-    },
-  ];
+const resourceConfig = [
+  {
+    key: "oxygen",
+    label: "Oxygen",
+    icon: Wind,
+    color: "#79d9ff",
+  },
+  {
+    key: "water",
+    label: "Water",
+    icon: Droplets,
+    color: "#67b6ff",
+  },
+  {
+    key: "food",
+    label: "Food",
+    icon: Sprout,
+    color: "#92e9a6",
+  },
+  {
+    key: "power",
+    label: "Power",
+    icon: Zap,
+    color: "#ffd080",
+  },
+  {
+    key: "health",
+    label: "Crew Health",
+    icon: HeartPulse,
+    color: "#ffa5ad",
+  },
+] as const;
 
+export default function ResourceMeters({
+  resources,
+}: ResourceMetersProps) {
   return (
-    <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
-      {resources.map((resource) => {
-        const Icon = resource.icon;
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+      {resourceConfig.map((item) => {
+        const Icon = item.icon;
         const value = Math.max(
           0,
-          Math.min(100, resource.value)
+          Math.min(100, resources[item.key])
         );
 
         return (
           <div
-            key={resource.label}
-            className="rounded-2xl border border-white/10 bg-[#14223b]/90 p-3 backdrop-blur-xl sm:p-4"
+            key={item.key}
+            className="rounded-2xl border border-white/10 bg-[#101b33]/90 p-3 backdrop-blur-xl"
           >
             <div className="mb-3 flex items-center gap-2">
               <Icon
                 size={17}
-                color={resource.color}
+                color={item.color}
               />
 
-              <span className="truncate text-[9px] font-bold tracking-wider text-slate-300 sm:text-xs">
-                {resource.label}
+              <span className="text-[10px] font-bold text-slate-200">
+                {item.label}
               </span>
             </div>
 
-            <div className="mb-3 text-xl font-extrabold text-white sm:text-2xl">
-              {value}%
-            </div>
+            <p className="mb-3 text-2xl font-black text-white">
+              {Math.round(value)}
+              <span className="ml-0.5 text-xs text-slate-400">
+                %
+              </span>
+            </p>
 
-            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full transition-all duration-700"
                 style={{
                   width: `${value}%`,
-                  backgroundColor: resource.color,
+                  backgroundColor: item.color,
                 }}
               />
             </div>

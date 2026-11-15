@@ -1,5 +1,11 @@
 "use client";
 
+
+import AnimatedRover from "@/components/AnimatedRover";
+import LunarTerrain from "@/components/LunarTerrain";
+import LunarHabitat from "@/components/LunarHabitat";
+import { Suspense } from "react";
+import ApolloLander from "@/components/ApolloLander";
 import { useEffect, useRef } from "react";
 import type { ComponentRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -15,6 +21,8 @@ type SceneProps = {
   explore: boolean;
   onSelect: (place: Place) => void;
   focus?: FocusTarget;
+  power?: number;
+  health?: number;
 };
 
 // Earth floating above the lunar horizon
@@ -390,90 +398,75 @@ function Rover() {
   );
 }
 
-// Our friendly astronaut
-function Astronaut() {
-  const astronaut = useRef<THREE.Group>(null);
 
-  useFrame((state) => {
-    if (astronaut.current) {
-      astronaut.current.position.y =
-        Math.sin(state.clock.elapsedTime * 1.5) * 0.04;
-    }
+function BaseWarning({
+  power,
+  health,
+}: {
+  power: number;
+  health: number;
+}) {
+  const alarmLight = useRef<THREE.PointLight>(null);
+
+  const lowPower = power <= 30;
+  const critical = power <= 15 || health <= 30;
+
+  useFrame(({ clock }) => {
+    if (!alarmLight.current) return;
+
+    const pulse =
+      (Math.sin(clock.elapsedTime * 6) + 1) / 2;
+
+    alarmLight.current.intensity =
+      critical
+        ? 12 + pulse * 20
+        : lowPower
+          ? 5 + pulse * 12
+          : 0;
   });
 
+  if (!lowPower && health > 30) {
+    return null;
+  }
+
   return (
-    <group
-      ref={astronaut}
-      position={[-1, 0, 3]}
-      rotation={[0, 0.35, 0]}
-    >
-      {/* Backpack */}
-      <mesh position={[0, 1, -0.28]}>
-        <boxGeometry args={[0.65, 0.9, 0.36]} />
-        <meshStandardMaterial color="#bdc9e2" />
+    <group position={[0.7, 2.9, -1]}>
+      {/* Warning beacon housing */}
+      <mesh castShadow>
+        <cylinderGeometry args={[0.23, 0.3, 0.35, 16]} />
+        <meshStandardMaterial color="#25334c" />
       </mesh>
 
-      {/* Body */}
-      <mesh position={[0, 1, 0]} castShadow>
-        <capsuleGeometry args={[0.38, 0.55, 6, 14]} />
-        <meshStandardMaterial color="#f6f5fa" />
-      </mesh>
-
-      {/* Helmet */}
-      <mesh position={[0, 1.9, 0]} castShadow>
-        <sphereGeometry args={[0.55, 24, 20]} />
+      {/* Illuminated warning lamp */}
+      <mesh position={[0, 0.27, 0]}>
+        <sphereGeometry args={[0.23, 20, 16]} />
         <meshStandardMaterial
-          color="#f4f7ff"
-          metalness={0.15}
+          color={critical ? "#ff334f" : "#ffb347"}
+          emissive={critical ? "#ff1735" : "#ff9933"}
+          emissiveIntensity={3}
         />
       </mesh>
 
-      {/* Visor */}
-      <mesh
-        position={[0, 1.9, 0.4]}
-        scale={[1, 0.75, 0.35]}
-      >
-        <sphereGeometry args={[0.43, 24, 20]} />
-        <meshStandardMaterial
-          color="#193d75"
-          metalness={0.65}
-          roughness={0.15}
-        />
-      </mesh>
-
-      {/* Arms */}
-      {[-0.55, 0.55].map((x) => (
-        <mesh key={x} position={[x, 1.08, 0]}>
-          <capsuleGeometry args={[0.16, 0.48, 4, 8]} />
-          <meshStandardMaterial color="#e9ecf8" />
-        </mesh>
-      ))}
-
-      {/* Legs */}
-      {[-0.25, 0.25].map((x) => (
-        <mesh key={x} position={[x, 0.35, 0]}>
-          <capsuleGeometry args={[0.17, 0.4, 4, 8]} />
-          <meshStandardMaterial color="#f6f5fa" />
-        </mesh>
-      ))}
-
-      {/* Suit badge */}
-      <mesh position={[0, 1.1, 0.4]}>
-        <sphereGeometry args={[0.12, 12, 12]} />
-        <meshStandardMaterial
-          color="#67e4ee"
-          emissive="#2995bc"
-          emissiveIntensity={1}
-        />
-      </mesh>
+      <pointLight
+        ref={alarmLight}
+        position={[0, 0.4, 0]}
+        color={critical ? "#ff2447" : "#ffad4b"}
+        intensity={0}
+        distance={12}
+        decay={2}
+      />
     </group>
   );
 }
 
 function MoonWorld({
   onSelect,
+  power,
+  health,
 }: {
   onSelect: SceneProps["onSelect"];
+  power: number;
+  health: number;
 }) {
   return (
     <>
@@ -484,21 +477,24 @@ function MoonWorld({
         args={["#080e22", 27, 65]}
       />
 
-      <ambientLight intensity={1.6} />
-
-      <hemisphereLight
-        color="#bcd3ff"
-        groundColor="#252844"
-        intensity={1.5}
-      />
+      <ambientLight
+  intensity={
+    power <= 15 ? 0.25 : power <= 30 ? 0.65 : 1.6
+  }
+/>
 
       <directionalLight
-        position={[-5, 12, 7]}
-        intensity={2.5}
-        color="#fff0da"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
+  position={[-12, 10, 5]}
+  intensity={3}
+  color="#fff0da"
+  castShadow
+  shadow-mapSize={[2048, 2048]}
+  shadow-camera-left={-24}
+  shadow-camera-right={24}
+  shadow-camera-top={24}
+  shadow-camera-bottom={-24}
+  shadow-normalBias={0.02}
+/>
 
       <pointLight
         position={[5, 4, 2]}
@@ -518,11 +514,17 @@ function MoonWorld({
 
       <Earth />
       <MoonGround />
-      <Habitat onSelect={onSelect} />
+      <LunarHabitat
+  power={power}
+  onSelect={() => onSelect("Habitat")}
+/>
       <Greenhouse onSelect={onSelect} />
       <SolarPanels onSelect={onSelect} />
-      <Rover />
-      <Astronaut />
+      <AnimatedRover />
+      <Suspense fallback={null}>
+  <ApolloLander />
+</Suspense>
+      <BaseWarning power={power} health={health} />
     </>
   );
 }
@@ -621,6 +623,8 @@ export default function LunarScene({
   explore,
   onSelect,
   focus = null,
+  power = 90,
+  health = 100,
 }: SceneProps) {
   const controlsRef =
     useRef<ComponentRef<typeof OrbitControls>>(null);
@@ -640,7 +644,11 @@ export default function LunarScene({
         powerPreference: "high-performance",
       }}
     >
-      <MoonWorld onSelect={onSelect} />
+      <MoonWorld
+  onSelect={onSelect}
+  power={power}
+  health={health}
+/>
 
       <OrbitControls
         ref={controlsRef}
