@@ -98,7 +98,24 @@ export default function FinalMissionHomecoming({strategy="safe",onComplete,onClo
   const cfg=CFG[strategy];
   const [chapter,setChapter]=useState<Chapter>(0);
   const [mode,setMode]=useState<Mode>("tutorial");
-  const [view,setView]=useState({progress:0,health:cfg.lives,fuel:100,seconds:cfg.time[0],beacons:0,shield:100,speed:0});
+
+const [view, setView] = useState<{
+  progress: number;
+  health: number;
+  fuel: number;
+  seconds: number;
+  beacons: number;
+  shield: number;
+  speed: number;
+}>({
+  progress: 0,
+  health: cfg.lives,
+  fuel: 100,
+  seconds: cfg.time[0],
+  beacons: 0,
+  shield: 100,
+  speed: 0,
+});
   const [message,setMessage]=useState("THE FINAL MISSION BEGINS");
   const canvas=useRef<HTMLCanvasElement|null>(null);
   const state=useRef<State>(fresh(0,cfg));

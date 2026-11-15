@@ -7,6 +7,24 @@ type Strategy = "safe" | "risky" | "dangerous";
 type Props = { strategy?: Strategy; busy?: boolean; onClose: () => void; onComplete: () => void };
 type Phase = "tutorial" | "scan" | "sync" | "collect" | "won" | "lost";
 type Supply = { id: number; x: number; y: number; bad: boolean };
+type MedBayLiveState = {
+  phase: Phase;
+  seconds: number;
+  hearts: number;
+  needle: number;
+  dir: number;
+  collectorX: number;
+  lastTick: number;
+  spawn: number;
+  seq: number;
+  caught: number;
+  syncs: number;
+  supplies: Supply[];
+  keys: {
+    left: boolean;
+    right: boolean;
+  };
+};
 const CONFIG = {
   safe: { time: 185, hearts: 5, syncSpeed: 0.55, catchSpeed: 15, target: 4, window: 0.19 },
   risky: { time: 155, hearts: 4, syncSpeed: 0.75, catchSpeed: 19, target: 5, window: 0.16 },
@@ -29,7 +47,7 @@ export default function MedBayRescue({ strategy="safe",busy=false,onClose,onComp
   const [caught,setCaught]=useState(0);
   const [notice,setNotice]=useState("Inspect all three glowing medical sensors.");
   const [showHelp,setShowHelp]=useState(false);
-  const live=useRef({phase:"tutorial" as Phase,seconds:cfg.time,hearts:cfg.hearts,needle:0,dir:1,collectorX:50,lastTick:0,spawn:0,seq:0,caught:0,syncs:0, supplies:[] as Supply[],keys:{left:false,right:false}});
+  const live=useRef<MedBayLiveState>({phase:"tutorial" as Phase,seconds:cfg.time,hearts:cfg.hearts,needle:0,dir:1,collectorX:50,lastTick:0,spawn:0,seq:0,caught:0,syncs:0, supplies:[] as Supply[],keys:{left:false,right:false}});
 
   const setPhaseSafe=(p:Phase)=>{live.current.phase=p;setPhase(p);};
   const reset=useCallback(()=>{
