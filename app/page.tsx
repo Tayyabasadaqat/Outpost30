@@ -23,7 +23,7 @@ import type {
   Place,
 } from "@/components/LunarScene";
 import "./landing.css";
-
+import OrbiLandingClient from "@/components/OrbiLandingClient";
 // ==========================================
 // EXISTING 3D SCENE — UNCHANGED
 // ==========================================
@@ -434,6 +434,8 @@ export default function Home() {
           </section>
         </div>
       )}
+      {/* ORBI is mounted only in the browser by its wrapper. */}
+      {!dialog && <OrbiLandingClient />}
 
     </main>
   );
