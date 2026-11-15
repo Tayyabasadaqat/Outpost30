@@ -1,5 +1,7 @@
 "use client";
 import RoverExploration from "@/components/RoverExploration";
+import LunarLanding from "@/components/LunarLanding";
+import LifeSupportPipes from "@/components/LifeSupportPipes";
 import SolarRepair from "@/components/SolarRepair";
 import WaterRecycling from "@/components/WaterRecycling";
 import { useEffect, useRef, useState } from "react";
@@ -36,6 +38,37 @@ import {
   loadMission,
   saveMission,
 } from "@/lib/mission-storage";
+
+import MissionStrategy, {
+  type Strategy,
+} from "@/components/MissionStrategy";
+
+// Local-only snapshots for replaying previous days while testing.
+const DEV_HISTORY_KEY = "outpost30_dev_day_snapshots_v1";
+
+function readDaySnapshots(): Record<number, GameState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DEV_HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as Record<number, GameState>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDaySnapshot(state: GameState) {
+  if (typeof window === "undefined") return;
+  try {
+    const snapshots = readDaySnapshots();
+    // Preserve the FIRST state for that day, not a partially played state.
+    if (!snapshots[state.day]) {
+      snapshots[state.day] = structuredClone(state);
+      localStorage.setItem(DEV_HISTORY_KEY, JSON.stringify(snapshots));
+    }
+  } catch (error) {
+    console.warn("Could not save developer day snapshot", error);
+  }
+}
 
 const LunarScene = dynamic(
   () => import("@/components/LunarScene"),
@@ -78,17 +111,34 @@ type Screen =
   | "base"
   | "intro"
   | "mission"
+  | "landing"
+  | "lifeSupport"
   | "rover"
   | "repair"
   | "water"
   | "emergency"
   | "result"
-  | "finished";
+  | "finished"
+  | "strategy";
 
 type Outcome = {
   title: string;
   message: string;
   effects: ResourceChanges;
+};
+
+const scienceNotes: Record<number, string> = {
+  1: "A successful lunar landing requires controlling descent speed and landing position. The Apollo lunar modules used throttleable descent engines and astronaut-guided landing procedures.",
+  2: "Crewed spacecraft need carefully controlled cabin oxygen and pressure. Real life-support systems use sensors, valves, and gas management equipment; the puzzle simplifies this process.",
+  3: "Solar arrays convert sunlight into electricity. Dust accumulation and shadows can reduce the power available to a lunar base.",
+  4: "Recycling water reduces the amount of fresh water that must be carried from Earth. The real International Space Station uses multiple water-recovery processes.",
+  5: "Lunar rovers can help explore places that would be difficult or risky for astronauts to reach on foot. Scientists study rock samples to understand lunar geology.",
+};
+
+type ActivityPerformance = {
+  day: number;
+  strategy: Strategy;
+  seconds: number;
 };
 
 const resourceNames: Record<string, string> = {
@@ -231,6 +281,88 @@ export default function GamePage() {
   const [selectedChoice, setSelectedChoice] =
     useState<string | null>(null);
 
+  const [selectedStrategy, setSelectedStrategy] =
+    useState<Strategy | null>(null);
+
+  // Client-side performance metrics. These do NOT alter backend resources yet.
+  const activityStartedAt = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [performance, setPerformance] = useState<ActivityPerformance | null>(null);
+
+  useEffect(() => {
+    const active = screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover";
+    if (!active) return;
+
+    // A retry after closing the activity starts a fresh run.
+    if (activityStartedAt.current === null) {
+      activityStartedAt.current = Date.now();
+      setElapsedSeconds(0);
+    }
+    const update = () => {
+      if (activityStartedAt.current !== null) {
+        setElapsedSeconds(Math.floor((Date.now() - activityStartedAt.current) / 1000));
+      }
+    };
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, [screen]);
+
+  // The strategy is selected before each activity.
+  function beginActivity(strategy: Strategy) {
+    if (!challenge) return;
+
+    setSelectedStrategy(strategy);
+    setPerformance(null);
+    activityStartedAt.current = null;
+    setElapsedSeconds(0);
+    setError("");
+
+    if (challenge.day === 1) {
+      setScreen("landing");
+    } else if (challenge.day === 2) {
+      setScreen("lifeSupport");
+    } else if (challenge.day === 3) {
+      setScreen("repair");
+    } else if (challenge.day === 4) {
+      setScreen("water");
+    } else if (challenge.day === 5) {
+      setScreen("rover");
+    } else {
+      // Retain the existing decision interface for other days.
+      setSelectedChoice(strategy);
+      setScreen("mission");
+    }
+  }
+
+  // Submit the actual chosen strategy after a minigame succeeds.
+  function completeActivity() {
+    if (!challenge || !selectedStrategy) {
+      setError("Choose a mission strategy before playing.");
+      return;
+    }
+
+    const choice = challenge.choices.find(
+      (item) => item.id === selectedStrategy
+    );
+
+    if (!choice) {
+      setError("Selected strategy is not available for this mission.");
+      return;
+    }
+
+    const elapsed = activityStartedAt.current === null
+      ? elapsedSeconds
+      : Math.floor((Date.now() - activityStartedAt.current) / 1000);
+    setPerformance({
+      day: challenge.day,
+      strategy: selectedStrategy,
+      seconds: elapsed,
+    });
+    activityStartedAt.current = null;
+    void submitDecision(choice);
+  }
+
   // Start a new game or restore an existing one.
   useEffect(() => {
     if (initialized.current) return;
@@ -246,6 +378,7 @@ export default function GamePage() {
             state: saved,
           });
 
+          saveDaySnapshot(saved);
           setGameState(saved);
           setChallenge(data.challenge ?? null);
           setEmergency(data.emergency ?? null);
@@ -261,6 +394,7 @@ export default function GamePage() {
             throw new Error("Mission state was not returned.");
           }
 
+          saveDaySnapshot(data.state);
           setGameState(data.state);
           setChallenge(data.challenge ?? null);
           setEmergency(data.emergency ?? null);
@@ -285,15 +419,7 @@ export default function GamePage() {
     if (screen !== "intro") return;
 
     const timer = window.setTimeout(() => {
-     setScreen(
-  challenge?.day === 3
-    ? "repair"
-    : challenge?.day === 4
-      ? "water"
-      : challenge?.day === 5
-        ? "rover"
-        : "mission"
-);
+    setScreen("strategy");
     }, 2600);
 
     return () => window.clearTimeout(timer);
@@ -301,6 +427,9 @@ export default function GamePage() {
 
   function beginDay() {
     setError("");
+    setSelectedStrategy(null);
+    setPerformance(null);
+    activityStartedAt.current = null;
     setSelectedChoice(null);
     setSelectedBuilding(null);
 
@@ -335,6 +464,8 @@ export default function GamePage() {
         throw new Error("Updated mission state is missing.");
       }
 
+      saveDaySnapshot(gameState);
+      saveDaySnapshot(data.state);
       setGameState(data.state);
       saveMission(data.state);
 
@@ -386,6 +517,8 @@ export default function GamePage() {
         throw new Error("Updated mission state is missing.");
       }
 
+      saveDaySnapshot(gameState);
+      saveDaySnapshot(data.state);
       setGameState(data.state);
       saveMission(data.state);
 
@@ -412,6 +545,9 @@ export default function GamePage() {
 
   function continueGame() {
     setOutcome(null);
+    setPerformance(null);
+    activityStartedAt.current = null;
+    setSelectedStrategy(null);
     setSelectedChoice(null);
 
     if (!gameState || gameState.status !== "active") {
@@ -440,12 +576,19 @@ export default function GamePage() {
         throw new Error("Unable to create a new mission.");
       }
 
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(DEV_HISTORY_KEY);
+      }
+      saveDaySnapshot(data.state);
       setGameState(data.state);
       setChallenge(data.challenge ?? null);
       setEmergency(data.emergency ?? null);
       setNextChallenge(null);
       setNextEmergency(null);
       setOutcome(null);
+      setPerformance(null);
+      activityStartedAt.current = null;
+      setSelectedStrategy(null);
       setSelectedChoice(null);
       setFocus(null);
       setSelectedBuilding(null);
@@ -463,12 +606,62 @@ export default function GamePage() {
     }
   }
 
+  // Development testing only: restore the ENTIRE previous day's saved state.
+  async function goToPreviousDay() {
+    if (!gameState || gameState.day <= 1 || busy) return;
+
+    const previous = readDaySnapshots()[gameState.day - 1];
+    if (!previous) {
+      setError("No saved snapshot for that day. Snapshots are created as you play.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const data = await missionRequest({
+        action: "challenge",
+        state: previous,
+      });
+      // Validate challenge retrieval BEFORE changing local state.
+      if (previous.status === "active" && !data.challenge && !data.emergency) {
+        throw new Error("Could not load the earlier day's mission.");
+      }
+
+      // Forget future checkpoints: the player may make different decisions now.
+      const snapshots = readDaySnapshots();
+      for (const key of Object.keys(snapshots)) {
+        if (Number(key) > previous.day) delete snapshots[Number(key)];
+      }
+      localStorage.setItem(DEV_HISTORY_KEY, JSON.stringify(snapshots));
+
+      setGameState(previous);
+      saveMission(previous);
+      setChallenge(data.challenge ?? null);
+      setEmergency(data.emergency ?? null);
+      setNextChallenge(null);
+      setNextEmergency(null);
+      setOutcome(null);
+      setPerformance(null);
+      activityStartedAt.current = null;
+      setSelectedStrategy(null);
+      setSelectedChoice(null);
+      setSelectedBuilding(null);
+      setFocus(getMissionFocus(data.challenge ?? null));
+      setScreen("base");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not restore day.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isFinished =
     gameState?.status === "completed" ||
     gameState?.status === "failed";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#080e22] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#000814] text-white">
       {/* 3D lunar environment */}
       <div className="absolute inset-0">
         <LunarScene
@@ -497,8 +690,24 @@ export default function GamePage() {
           Base
         </Link>
 
-        <div className="rounded-full border border-white/15 bg-[#101b33]/90 px-5 py-3 text-sm font-black backdrop-blur-xl">
-          DAY {String(gameState?.day ?? 1).padStart(2, "0")} / 30
+        <div className="pointer-events-auto flex items-center gap-2">
+          {process.env.NODE_ENV === "development" &&
+            screen === "base" && gameState && gameState.day > 1 && (
+              <button
+                type="button"
+                onClick={() => void goToPreviousDay()}
+                disabled={busy}
+                title="Developer testing: restore the previous day's complete saved state"
+                className="flex items-center gap-1 rounded-full border border-[#ffc300]/50 bg-[#001d3d]/95 px-3 py-3 text-xs font-bold text-[#ffd60a] disabled:opacity-40"
+              >
+                <ArrowLeft size={14} />
+                <span className="hidden sm:inline">PREVIOUS DAY (TEST)</span>
+                <span className="sm:hidden">TEST -1</span>
+              </button>
+            )}
+          <div className="rounded-full border border-white/15 bg-[#001d3d]/90 px-4 py-3 text-sm font-black backdrop-blur-xl">
+            DAY {String(gameState?.day ?? 1).padStart(2, "0")} / 30
+          </div>
         </div>
       </header>
 
@@ -538,7 +747,7 @@ export default function GamePage() {
             {screen === "base" && (
               <button
                 onClick={beginDay}
-                className="mx-auto flex items-center gap-3 rounded-2xl bg-[#ffd080] px-8 py-4 font-black text-[#17213a] transition hover:scale-105"
+                className="mx-auto flex items-center gap-3 rounded-2xl bg-[#ffc300] px-8 py-4 font-black text-[#17213a] transition hover:scale-105"
               >
                 {emergency ? (
                   <>
@@ -559,7 +768,7 @@ export default function GamePage() {
 
       {/* Loading */}
       {screen === "loading" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080e22]/90 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000814]/90 p-6">
           <div className="text-center">
             <LoaderCircle
               size={42}
@@ -575,7 +784,7 @@ export default function GamePage() {
                 <button
                   onClick={startNewGame}
                   disabled={busy}
-                  className="rounded-xl bg-[#ffd080] px-6 py-3 font-bold text-slate-900 disabled:opacity-50"
+                  className="rounded-xl bg-[#ffc300] px-6 py-3 font-bold text-slate-900 disabled:opacity-50"
                 >
                   Try Again
                 </button>
@@ -591,36 +800,48 @@ export default function GamePage() {
           day={gameState?.day ?? challenge.day}
           title={challenge.title}
           location={challenge.category}
-          onSkip={() =>
-  setScreen(
-    challenge?.day === 3
-      ? "repair"
-      : challenge?.day === 4
-        ? "water"
-        : challenge?.day === 5
-          ? "rover"
-          : "mission"
-  )
-}
+          onSkip={() => setScreen("strategy")}
         />
       )}
 
-{/* INTERACTIVE SOLAR REPAIR — DAY 3 */}
+      {/* STRATEGY SELECTION — BEFORE THE DAILY ACTIVITY */}
+      {screen === "strategy" && challenge && (
+        <MissionStrategy
+          day={challenge.day}
+          title={challenge.title}
+          description={challenge.description}
+          onChoose={beginActivity}
+        />
+      )}
+
+      {/* DAY 1 — INTERACTIVE 3D LUNAR LANDING */}
+      {screen === "landing" && challenge?.day === 1 && (
+        <LunarLanding
+          key={`landing-${gameState?.day}-${selectedStrategy}`}
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 2 — LIFE SUPPORT PIPE NETWORK */}
+      {screen === "lifeSupport" && challenge?.day === 2 && (
+        <LifeSupportPipes
+          key={`life-support-${gameState?.day}-${selectedStrategy}`}
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* INTERACTIVE SOLAR REPAIR — DAY 3 */}
 {screen === "repair" && challenge?.day === 3 && (
   <SolarRepair
     busy={busy}
     onClose={() => setScreen("base")}
-    onComplete={() => {
-      const safeChoice = challenge.choices.find(
-        (choice) => choice.id === "safe"
-      );
-
-      if (safeChoice) {
-        void submitDecision(safeChoice);
-      } else {
-        setError("Solar mission choice is missing.");
-      }
-    }}
+    onComplete={completeActivity}
   />
 )}
 
@@ -629,17 +850,7 @@ export default function GamePage() {
   <WaterRecycling
     busy={busy}
     onClose={() => setScreen("base")}
-    onComplete={() => {
-      const safeChoice = challenge.choices.find(
-        (choice) => choice.id === "safe"
-      );
-
-      if (safeChoice) {
-        void submitDecision(safeChoice);
-      } else {
-        setError("Water recycling mission choice is missing.");
-      }
-    }}
+    onComplete={completeActivity}
   />
 )}
 
@@ -648,19 +859,17 @@ export default function GamePage() {
   <RoverExploration
     busy={busy}
     onClose={() => setScreen("base")}
-    onComplete={() => {
-      const safeChoice = challenge.choices.find(
-        (choice) => choice.id === "safe"
-      );
-
-      if (safeChoice) {
-        void submitDecision(safeChoice);
-      } else {
-        setError("Rover mission choice is missing.");
-      }
-    }}
+    onComplete={completeActivity}
   />
 )}
+
+      {/* Real gameplay elapsed time for Days 3, 4 and 5 */}
+      {(screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover") && !busy && (
+        <div className="pointer-events-none fixed right-4 top-[76px] z-[80] rounded-xl border border-[#ffc300]/40 bg-[#000814]/90 px-4 py-2 text-xs font-bold text-[#ffd60a] shadow-lg">
+          MISSION TIME · {String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:
+          {String(elapsedSeconds % 60).padStart(2, "0")}
+        </div>
+      )}
 
       {/* Normal mission choices */}
       {screen === "mission" && challenge && (
@@ -669,7 +878,7 @@ export default function GamePage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="real-mission-title"
-            className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-cyan-200/20 bg-[#101b34] p-6 shadow-2xl sm:p-8"
+            className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-cyan-200/20 bg-[#001d3d] p-6 shadow-2xl sm:p-8"
           >
             <div className="mb-5 flex items-center justify-between">
               <span className="text-xs font-bold tracking-widest text-cyan-200">
@@ -729,7 +938,7 @@ export default function GamePage() {
                 );
                 if (choice) void submitDecision(choice);
               }}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] px-6 py-4 font-black text-slate-900 disabled:opacity-40"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffc300] px-6 py-4 font-black text-slate-900 disabled:opacity-40"
             >
               {busy ? "Processing..." : "CONFIRM DECISION"}
               <ArrowRight size={19} />
@@ -798,7 +1007,7 @@ export default function GamePage() {
       {/* Results */}
       {screen === "result" && outcome && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/80 p-4 backdrop-blur-md">
-          <section className="w-full max-w-lg rounded-[28px] border border-white/15 bg-[#101b34] p-7 text-center shadow-2xl">
+          <section className="w-full max-w-lg rounded-[28px] border border-white/15 bg-[#001d3d] p-7 text-center shadow-2xl">
             <CheckCircle2
               size={45}
               className="mx-auto mb-4 text-emerald-300"
@@ -812,7 +1021,31 @@ export default function GamePage() {
               {outcome.message}
             </p>
 
+            {performance && (
+              <div className="mb-5 grid grid-cols-2 gap-3 text-left">
+                <div className="rounded-xl border border-[#003566] bg-[#000814] p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-400">Completion time</p>
+                  <p className="mt-1 text-xl font-black text-[#ffd60a]">
+                    {Math.floor(performance.seconds / 60)}m {performance.seconds % 60}s
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#003566] bg-[#000814] p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-400">Your approach</p>
+                  <p className="mt-1 text-xl font-black capitalize text-[#ffd60a]">
+                    {performance.strategy === "safe" ? "Careful" : performance.strategy === "risky" ? "Quick" : "Emergency"}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <EffectLabels effects={outcome.effects} />
+
+            {performance && scienceNotes[performance.day] && (
+              <div className="mt-5 rounded-xl border border-[#ffc300]/25 bg-[#000814] p-4 text-left">
+                <p className="text-xs font-black tracking-widest text-[#ffd60a]">SPACE SCIENCE DISCOVERY</p>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{scienceNotes[performance.day]}</p>
+              </div>
+            )}
 
             <p className="mt-4 text-xs text-slate-400">
               Changes include simulated mission operations.
@@ -820,7 +1053,7 @@ export default function GamePage() {
 
             <button
               onClick={continueGame}
-              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] p-4 font-black text-slate-900"
+              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffc300] p-4 font-black text-slate-900"
             >
               {isFinished ? "VIEW MISSION REPORT" : "CONTINUE"}
               <ArrowRight size={19} />
@@ -832,7 +1065,7 @@ export default function GamePage() {
       {/* Mission report */}
       {screen === "finished" && gameState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030816]/90 p-4 backdrop-blur-xl">
-          <section className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-amber-200/20 bg-[#101b34] p-7 text-center shadow-2xl sm:p-10">
+          <section className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-amber-200/20 bg-[#001d3d] p-7 text-center shadow-2xl sm:p-10">
             <Sparkles
               size={48}
               className="mx-auto mb-5 text-[#ffd080]"
@@ -865,7 +1098,7 @@ export default function GamePage() {
             <button
               onClick={startNewGame}
               disabled={busy}
-              className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd080] p-4 font-black text-slate-900 disabled:opacity-50"
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffc300] p-4 font-black text-slate-900 disabled:opacity-50"
             >
               <RotateCcw size={19} />
               {busy ? "Preparing..." : "START NEW MISSION"}
