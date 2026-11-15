@@ -29,6 +29,7 @@ import BlackoutGridCommander from "@/components/BlackoutGridCommander";
 import LunarCanyonGrapple from "@/components/LunarCanyonGrapple";
 import LaunchReadyFinalCountdown from "@/components/LaunchReadyFinalCountdown";
 import FinalMissionHomecoming from "@/components/FinalMissionHomecoming";
+import RobotAssistant from "@/components/robot/RobotAssistant";
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -770,6 +771,16 @@ export default function GamePage() {
     gameState?.status === "completed" ||
     gameState?.status === "failed";
 
+  // ORBI is available in the base and regular activities. Keep it out of
+  // cinematic intros, emergency/result overlays, and the Day 30 finale,
+  // where internal cinematic transitions aren't exposed to this page.
+  const showOrbi = Boolean(
+    gameState &&
+    challenge &&
+    !busy &&
+    !["loading", "intro", "emergency", "result", "finished", "homecoming"].includes(screen)
+  );
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#000814] text-white">
       {/* 3D lunar environment */}
@@ -1464,6 +1475,20 @@ export default function GamePage() {
               {busy ? "Preparing..." : "START NEW MISSION"}
             </button>
           </section>
+        </div>
+      )}
+
+      {/* ORBI — educational hints and mission Q&A. Gameplay only; never over
+          cinematic, emergency, mission results, or final homecoming scenes. */}
+      {showOrbi && challenge && gameState && (
+        <div className="pointer-events-none fixed inset-0 z-[90]">
+          <div className="pointer-events-auto absolute bottom-4 right-4">
+            <RobotAssistant
+              day={gameState.day}
+              missionTitle={challenge.title}
+              missionDescription={challenge.description}
+            />
+          </div>
         </div>
       )}
 
