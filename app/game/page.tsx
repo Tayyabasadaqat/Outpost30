@@ -4,6 +4,32 @@ import LunarLanding from "@/components/LunarLanding";
 import LifeSupportPipes from "@/components/LifeSupportPipes";
 import SolarRepair from "@/components/SolarRepair";
 import WaterRecycling from "@/components/WaterRecycling";
+import MoonBaseBuilder from "@/components/MoonBaseBuilder";
+import CargoDelivery from "@/components/CargoDelivery";
+import RadiationShieldRush from "@/components/RadiationShieldRush";
+import LunarDustBusters from "@/components/LunarDustBusters";
+import PantryPanic from "@/components/PantryPanic";
+import RoverRepairBay from "@/components/RoverRepairBay";
+import ThermalStrike from "@/components/ThermalStrike";
+import LunarSampleHunt from "@/components/LunarSampleHunt";
+import BatteryRescue from "@/components/BatteryRescue";
+import CrewFatigueCommand from "@/components/CrewFatigueCommand";
+import SolarFlareShelter from "@/components/SolarFlareShelter";
+import GreenhouseGuardians from "@/components/GreenhouseGuardians";
+import OxygenReactorRun from "@/components/OxygenReactorRun";
+import LunarNavigationQuest from "@/components/LunarNavigationQuest";
+import MedBayRescue from "@/components/MedBayRescue";
+import SolarBounce from "@/components/SolarBounce";
+import HabitatBreachHunters from "@/components/HabitatBreachHunters";
+import LunarGravityLab from "@/components/LunarGravityLab";
+import ZeroGJunkBlaster from "@/components/ZeroGJunkBlaster";
+import CommunicationRelayRun from "@/components/CommunicationRelayRun";
+import StormStack from "@/components/StormStack";
+import BlackoutGridCommander from "@/components/BlackoutGridCommander";
+import LunarCanyonGrapple from "@/components/LunarCanyonGrapple";
+import LaunchReadyFinalCountdown from "@/components/LaunchReadyFinalCountdown";
+import FinalMissionHomecoming from "@/components/FinalMissionHomecoming";
+
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -116,6 +142,31 @@ type Screen =
   | "rover"
   | "repair"
   | "water"
+  | "builder"
+  | "cargo"
+  | "radiation"
+  | "dust"
+  | "pantry"
+  | "roverRepair"
+  | "thermal"
+  | "sampleHunt"
+  | "batteryRescue"
+  | "crewFatigue"
+  | "solarFlareShelter"
+  | "greenhouseGuardians"
+  | "oxygenReactorRun"
+  | "lunarNavigationQuest"
+  | "medBayRescue"
+  | "solarBounce"
+  | "habitatBreachHunters"
+  | "lunarGravityLab"
+  | "zeroGJunkBlaster"
+  | "communicationRelayRun"
+  | "stormStack"
+  | "blackoutGrid"
+  | "canyonGrapple"
+  | "launchReady"
+  | "homecoming"
   | "emergency"
   | "result"
   | "finished"
@@ -132,7 +183,16 @@ const scienceNotes: Record<number, string> = {
   2: "Crewed spacecraft need carefully controlled cabin oxygen and pressure. Real life-support systems use sensors, valves, and gas management equipment; the puzzle simplifies this process.",
   3: "Solar arrays convert sunlight into electricity. Dust accumulation and shadows can reduce the power available to a lunar base.",
   4: "Recycling water reduces the amount of fresh water that must be carried from Earth. The real International Space Station uses multiple water-recovery processes.",
+  10: "Astronaut food must be safely packaged, tracked, and rationed so crews have enough nutrition for the whole mission. Food inventory systems help prevent shortages and waste.",
+  11: "Rovers must be inspected and tested before a journey. Technicians diagnose faults, repair damaged systems, and verify sensors and controls before driving.",
+  12: "Lunar habitats use insulation, radiators and active temperature-control systems to keep equipment and astronauts within safe operating ranges.",
+  13: "Scientists collect lunar rocks using careful sample handling to help preserve their scientific value. Basalt records ancient volcanism; impact breccias record collisions.",
+  17: "Greenhouses in spacecraft need controlled light, water and nutrients. Plants may contribute to food production and life-support research on future missions. The game simplifies real plant care.",
+  14: "Battery banks provide stored electricity when solar power changes. Overheating or damaged cells should be identified and isolated safely before repair. This game simplifies actual electrical maintenance.",
+  9: "Lunar regolith contains fine, abrasive dust that can wear seals and obscure equipment. Dust control and careful cleaning are important for surface exploration.",
   5: "Lunar rovers can help explore places that would be difficult or risky for astronauts to reach on foot. Scientists study rock samples to understand lunar geology.",
+  6: "Lunar habitats need carefully planned power, life support, and connected modules. Their layouts must consider dust, sunlight, and crew safety.",
+  20: "Crew health emergencies are handled using assessment, medical training, and carefully planned onboard resources. The game represents these procedures as simplified challenges.",
 };
 
 type ActivityPerformance = {
@@ -290,7 +350,7 @@ export default function GamePage() {
   const [performance, setPerformance] = useState<ActivityPerformance | null>(null);
 
   useEffect(() => {
-    const active = screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover";
+    const active = screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover" || screen === "builder" || screen === "cargo" || screen === "radiation" || screen === "dust" || screen === "pantry" || screen === "roverRepair" || screen === "thermal" || screen === "sampleHunt" || screen === "batteryRescue" || screen === "crewFatigue" || screen === "solarFlareShelter" || screen === "greenhouseGuardians" || screen === "oxygenReactorRun" || screen === "lunarNavigationQuest" || screen === "medBayRescue" || screen === "solarBounce" || screen === "habitatBreachHunters" || screen === "lunarGravityLab" || screen === "zeroGJunkBlaster" || screen === "communicationRelayRun" || screen === "stormStack" || screen === "blackoutGrid" || screen === "canyonGrapple" || screen === "launchReady" || screen === "homecoming";
     if (!active) return;
 
     // A retry after closing the activity starts a fresh run.
@@ -328,6 +388,56 @@ export default function GamePage() {
       setScreen("water");
     } else if (challenge.day === 5) {
       setScreen("rover");
+    } else if (challenge.day === 6) {
+      setScreen("builder");
+    } else if (challenge.day === 7) {
+      setScreen("cargo");
+    } else if (challenge.day === 8) {
+      setScreen("radiation");
+    } else if (challenge.day === 9) {
+      setScreen("dust");
+    } else if (challenge.day === 10) {
+      setScreen("pantry");
+    } else if (challenge.day === 11) {
+      setScreen("roverRepair");
+    } else if (challenge.day === 12) {
+      setScreen("thermal");
+    } else if (challenge.day === 13) {
+      setScreen("sampleHunt");
+    } else if (challenge.day === 14) {
+      setScreen("batteryRescue");
+    } else if (challenge.day === 15) {
+      setScreen("crewFatigue");
+    } else if (challenge.day === 16) {
+      setScreen("solarFlareShelter");
+    } else if (challenge.day === 17) {
+      setScreen("greenhouseGuardians");
+    } else if (challenge.day === 18) {
+      setScreen("oxygenReactorRun");
+    } else if (challenge.day === 19) {
+      setScreen("lunarNavigationQuest");
+    } else if (challenge.day === 20) {
+      setScreen("medBayRescue");
+    } else if (challenge.day === 21) {
+      setScreen("solarBounce");
+    } else if (challenge.day === 22) {
+      setScreen("habitatBreachHunters");
+    } else if (challenge.day === 23) {
+      setScreen("lunarGravityLab");
+    } else if (challenge.day === 24) {
+      setScreen("zeroGJunkBlaster");
+    } else if (challenge.day === 25) {
+      setScreen("communicationRelayRun");
+    } else if (challenge.day === 26) {
+      setScreen("stormStack");
+    } else if (challenge.day === 27) {
+      setScreen("blackoutGrid");
+    } else if (challenge.day === 28) {
+      setScreen("canyonGrapple");
+    } else if (challenge.day === 29) {
+      setScreen("launchReady");
+    } else if (challenge.day === 30) {
+      setScreen("homecoming");
     } else {
       // Retain the existing decision interface for other days.
       setSelectedChoice(strategy);
@@ -863,8 +973,258 @@ export default function GamePage() {
   />
 )}
 
-      {/* Real gameplay elapsed time for Days 3, 4 and 5 */}
-      {(screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover") && !busy && (
+      {/* DAY 6 — MOON BASE CONSTRUCTION */}
+      {screen === "builder" && challenge?.day === 6 && (
+        <MoonBaseBuilder
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 7 — CARGO DELIVERY */}
+      {screen === "cargo" && challenge?.day === 7 && (
+        <CargoDelivery
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 8 — RADIATION MONITORING ARCADE */}
+      {screen === "radiation" && challenge?.day === 8 && (
+        <RadiationShieldRush
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 9 — LUNAR DUST EMERGENCY */}
+      {screen === "dust" && challenge?.day === 9 && (
+        <LunarDustBusters
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 10 — FOOD INVENTORY SORTING GAME */}
+      {screen === "pantry" && challenge?.day === 10 && (
+        <PantryPanic
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 11 — ROVER MAINTENANCE */}
+      {screen === "roverRepair" && challenge?.day === 11 && (
+        <RoverRepairBay
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 12 — THERMAL CONTROL */}
+      {screen === "thermal" && challenge?.day === 12 && (
+        <ThermalStrike
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 13 — LUNAR SAMPLE COLLECTION */}
+      {screen === "sampleHunt" && challenge?.day === 13 && (
+        <LunarSampleHunt
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 14 — BATTERY FAILURE */}
+      {screen === "batteryRescue" && challenge?.day === 14 && (
+        <BatteryRescue
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 15 — CREW FATIGUE */}
+      {screen === "crewFatigue" && challenge?.day === 15 && (
+        <CrewFatigueCommand
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 16 — SOLAR FLARE RESPONSE */}
+      {screen === "solarFlareShelter" && challenge?.day === 16 && (
+        <SolarFlareShelter
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 17 — GREENHOUSE MAINTENANCE */}
+      {screen === "greenhouseGuardians" && challenge?.day === 17 && (
+        <GreenhouseGuardians
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 18 — OXYGEN GENERATOR FAULT */}
+      {screen === "oxygenReactorRun" && challenge?.day === 18 && (
+        <OxygenReactorRun
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 19 — LUNAR NAVIGATION */}
+      {screen === "lunarNavigationQuest" && challenge?.day === 19 && (
+        <LunarNavigationQuest
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 20 — MEDICAL EMERGENCY */}
+      {screen === "medBayRescue" && challenge?.day === 20 && (
+        <MedBayRescue
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 21 — SOLAR PANEL DUST */}
+      {screen === "solarBounce" && challenge?.day === 21 && (
+        <SolarBounce
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 22 — HABITAT LEAK */}
+      {screen === "habitatBreachHunters" && challenge?.day === 22 && (
+        <HabitatBreachHunters
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 23 — SCIENTIFIC EXPERIMENT */}
+      {screen === "lunarGravityLab" && challenge?.day === 23 && (
+        <LunarGravityLab
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 24 — WASTE PROCESSING */}
+      {screen === "zeroGJunkBlaster" && challenge?.day === 24 && (
+        <ZeroGJunkBlaster
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 25 — COMMUNICATION RELAY */}
+      {screen === "communicationRelayRun" && challenge?.day === 25 && (
+        <CommunicationRelayRun
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 26 — RADIATION PREPAREDNESS */}
+      {screen === "stormStack" && challenge?.day === 26 && (
+        <StormStack
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 27 — EMERGENCY POWER */}
+      {screen === "blackoutGrid" && challenge?.day === 27 && (
+        <BlackoutGridCommander
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 28 — FINAL EXPLORATION */}
+      {screen === "canyonGrapple" && challenge?.day === 28 && (
+        <LunarCanyonGrapple
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 29 — MISSION PREPARATION */}
+      {screen === "launchReady" && challenge?.day === 29 && (
+        <LaunchReadyFinalCountdown
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* DAY 30 — GRAND FINALE */}
+      {screen === "homecoming" && challenge?.day === 30 && (
+        <FinalMissionHomecoming
+          strategy={selectedStrategy ?? "safe"}
+          busy={busy}
+          onClose={() => setScreen("base")}
+          onComplete={completeActivity}
+        />
+      )}
+
+      {/* Real gameplay elapsed time for Days 1–30 */}
+      {(screen === "landing" || screen === "lifeSupport" || screen === "repair" || screen === "water" || screen === "rover" || screen === "builder" || screen === "cargo" || screen === "radiation" || screen === "dust" || screen === "pantry" || screen === "roverRepair" || screen === "thermal" || screen === "sampleHunt" || screen === "batteryRescue" || screen === "crewFatigue" || screen === "solarFlareShelter" || screen === "greenhouseGuardians" || screen === "oxygenReactorRun" || screen === "lunarNavigationQuest" || screen === "medBayRescue" || screen === "solarBounce" || screen === "habitatBreachHunters" || screen === "lunarGravityLab" || screen === "zeroGJunkBlaster" || screen === "communicationRelayRun" || screen === "stormStack" || screen === "blackoutGrid" || screen === "canyonGrapple" || screen === "launchReady" || screen === "homecoming") && !busy && (
         <div className="pointer-events-none fixed right-4 top-[76px] z-[80] rounded-xl border border-[#ffc300]/40 bg-[#000814]/90 px-4 py-2 text-xs font-bold text-[#ffd60a] shadow-lg">
           MISSION TIME · {String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:
           {String(elapsedSeconds % 60).padStart(2, "0")}
